@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { login, fetchPlans } from "../services/api";
+import { login } from "../services/api";
 
 const Login = () => {
   const [email, setEmail] = useState("");
@@ -8,7 +8,23 @@ const Login = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
+  const [isFocused, setIsFocused] = useState({ email: false, password: false });
+  const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
   const navigate = useNavigate();
+
+  // Mouse tracking for parallax effect
+  useEffect(() => {
+    const handleMouseMove = (e) => {
+      setMousePosition({
+        x: (e.clientX / window.innerWidth - 0.5) * 2,
+        y: (e.clientY / window.innerHeight - 0.5) * 2,
+      });
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    return () => window.removeEventListener('mousemove', handleMouseMove);
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -22,6 +38,9 @@ const Login = () => {
         localStorage.setItem("tenantId", response.tenantId);
         localStorage.setItem("businessName", response.businessName);
         localStorage.setItem("ownerName", response.ownerName);
+        if (rememberMe) {
+          localStorage.setItem("rememberMe", "true");
+        }
         navigate(`/${response.tenantId}/dashboard`);
       } else {
         setError(response.error || "Login failed");
@@ -34,167 +53,184 @@ const Login = () => {
   };
 
   return (
-    <div className="auth-container d-flex align-items-center justify-content-center">
-      <div className="container">
-        <div className="row justify-content-center">
-          <div className="col-md-6 col-lg-4">
-            {/* Logo and Brand Section */}
-            <div className="text-center mb-4">
-              <div className="d-inline-flex align-items-center justify-content-center bg-white rounded-circle shadow-lg mb-3 floating" 
-                   style={{ width: '80px', height: '80px' }}>
-                <i className="bi bi-robot text-primary" style={{ fontSize: '2rem' }}></i>
+    <div className="login-container">
+      {/* Animated Background */}
+      <div className="animated-background">
+        <div className="particles-container">
+          {[...Array(30)].map((_, i) => (
+            <div
+              key={i}
+              className="particle"
+              style={{
+                '--delay': `${Math.random() * 15}s`,
+                '--duration': `${8 + Math.random() * 15}s`,
+                '--size': `${2 + Math.random() * 6}px`,
+                '--x': `${Math.random() * 100}%`,
+                '--y': `${Math.random() * 100}%`,
+              }}
+            />
+          ))}
+        </div>
+        
+        {/* Floating Shapes */}
+        <div className="floating-shapes">
+          <div className="shape shape-hexagon" style={{ transform: `translate(${mousePosition.x * 15}px, ${mousePosition.y * 15}px)` }}></div>
+          <div className="shape shape-circle" style={{ transform: `translate(${mousePosition.x * -10}px, ${mousePosition.y * -10}px)` }}></div>
+          <div className="shape shape-triangle" style={{ transform: `translate(${mousePosition.x * 20}px, ${mousePosition.y * 20}px)` }}></div>
+        </div>
+
+        {/* Gradient Orbs */}
+        <div className="gradient-orbs">
+          <div className="orb orb-1"></div>
+          <div className="orb orb-2"></div>
+        </div>
+      </div>
+
+      {/* Centered Login Content */}
+      <div className="login-content">
+        <div className="login-wrapper">
+          {/* Brand Header */}
+          <div className="brand-header">
+            <div className="brand-logo">
+              <div className="logo-icon">
+                <i className="bi bi-robot"></i>
               </div>
-              <h2 className="text-white fw-bold mb-2">AiAgenticCRM</h2>
-              <p className="text-white-50 mb-0">AI-Powered Customer Relationship Management</p>
+              <div className="logo-glow"></div>
+            </div>
+            <h1 className="brand-title">
+              <span className="title-main">AiAgentic</span>
+              <span className="title-accent">CRM</span>
+            </h1>
+            <p className="brand-subtitle">AI-Powered Customer Relationship Management</p>
+          </div>
+
+          {/* Login Card */}
+          <div className="login-card">
+            <div className="card-header">
+              <h2 className="welcome-title">Welcome Back</h2>
+              <p className="welcome-subtitle">Sign in to your account</p>
             </div>
 
-            {/* Login Card */}
-            <div className="card auth-card border-0 shadow-lg" style={{ borderRadius: '20px' }}>
-              <div className="card-body p-5">
-                <div className="text-center mb-4">
-                  <h4 className="fw-bold text-dark mb-2">Welcome Back</h4>
-                  <p className="text-muted">Sign in to your business account</p>
+            <div className="card-body">
+              {error && (
+                <div className="error-alert">
+                  <div className="error-icon">
+                    <i className="bi bi-exclamation-triangle-fill"></i>
+                  </div>
+                  <div className="error-content">
+                    <p>{error}</p>
+                  </div>
+                </div>
+              )}
+
+              <form onSubmit={handleSubmit} className="login-form">
+                <div className="form-group">
+                  <div className="input-wrapper">
+                    <div className="input-icon">
+                      <i className="bi bi-envelope"></i>
+                    </div>
+                    <input
+                      type="email"
+                      className="form-input"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      onFocus={() => setIsFocused({ ...isFocused, email: true })}
+                      onBlur={() => setIsFocused({ ...isFocused, email: false })}
+                      placeholder="Email address"
+                      required
+                    />
+                    <div className="input-border"></div>
+                  </div>
                 </div>
 
-                {error && (
-                  <div className="alert alert-danger border-0 shadow-sm" 
-                       style={{ borderRadius: '12px', backgroundColor: '#fef2f2', border: '1px solid #fecaca' }}>
-                    <i className="bi bi-exclamation-triangle-fill me-2"></i>
-                    {error}
-                  </div>
-                )}
-
-                <form onSubmit={handleSubmit}>
-                  <div className="mb-4">
-                    <label className="form-label fw-semibold text-dark">
-                      <i className="bi bi-envelope me-2 text-primary"></i>
-                      Email Address
-                    </label>
-                    <div className="input-group">
-                      <input
-                        type="email"
-                        className="form-control auth-input border-0 bg-light"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        placeholder="Enter your email"
-                        required
-                        style={{ 
-                          borderRadius: '12px', 
-                          padding: '12px 16px',
-                          fontSize: '16px'
-                        }}
-                      />
+                <div className="form-group">
+                  <div className="input-wrapper">
+                    <div className="input-icon">
+                      <i className="bi bi-lock"></i>
                     </div>
-                  </div>
-
-                  <div className="mb-4">
-                    <label className="form-label fw-semibold text-dark">
-                      <i className="bi bi-lock me-2 text-primary"></i>
-                      Password
-                    </label>
-                    <div className="input-group">
-                      <input
-                        type={showPassword ? "text" : "password"}
-                        className="form-control auth-input border-0 bg-light"
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        placeholder="Enter your password"
-                        required
-                        style={{ 
-                          borderRadius: '12px 0 0 12px', 
-                          padding: '12px 16px',
-                          fontSize: '16px'
-                        }}
-                      />
-                      <button
-                        type="button"
-                        className="btn btn-outline-secondary border-0 bg-light"
-                        onClick={() => setShowPassword(!showPassword)}
-                        style={{ borderRadius: '0 12px 12px 0' }}
-                      >
-                        <i className={`bi ${showPassword ? 'bi-eye-slash' : 'bi-eye'}`}></i>
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="mb-4">
-                    <div className="form-check">
-                      <input className="form-check-input" type="checkbox" id="rememberMe" />
-                      <label className="form-check-label text-muted" htmlFor="rememberMe">
-                        Remember me
-                      </label>
-                    </div>
-                  </div>
-
-                  <button
-                    type="submit"
-                    className="btn btn-primary auth-btn w-100 border-0 shadow-sm"
-                    disabled={loading}
-                    style={{ 
-                      borderRadius: '12px', 
-                      padding: '12px',
-                      fontSize: '16px',
-                      fontWeight: '600',
-                      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                      transition: 'all 0.3s ease'
-                    }}
-                    onMouseOver={(e) => {
-                      e.target.style.transform = 'translateY(-2px)';
-                      e.target.style.boxShadow = '0 8px 25px rgba(102, 126, 234, 0.3)';
-                    }}
-                    onMouseOut={(e) => {
-                      e.target.style.transform = 'translateY(0)';
-                      e.target.style.boxShadow = '0 4px 15px rgba(0, 0, 0, 0.1)';
-                    }}
-                  >
-                    {loading ? (
-                      <>
-                        <span className="spinner-border spinner-border-sm me-2" role="status"></span>
-                        Signing In...
-                      </>
-                    ) : (
-                      <>
-                        <i className="bi bi-box-arrow-in-right me-2"></i>
-                        Sign In
-                      </>
-                    )}
-                  </button>
-                </form>
-
-                <div className="text-center mt-4">
-                  <p className="text-muted mb-0">
-                    Don't have an account?{" "}
-                    <a 
-                      href="/register" 
-                      className="text-decoration-none fw-semibold"
-                      style={{ 
-                        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                        WebkitBackgroundClip: 'text',
-                        WebkitTextFillColor: 'transparent'
-                      }}
+                    <input
+                      type={showPassword ? "text" : "password"}
+                      className="form-input"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      onFocus={() => setIsFocused({ ...isFocused, password: true })}
+                      onBlur={() => setIsFocused({ ...isFocused, password: false })}
+                      placeholder="Password"
+                      required
+                    />
+                    <button
+                      type="button"
+                      className="password-toggle"
+                      onClick={() => setShowPassword(!showPassword)}
                     >
-                      Create one here
-                    </a>
-                  </p>
+                      <i className={`bi ${showPassword ? 'bi-eye-slash' : 'bi-eye'}`}></i>
+                    </button>
+                    <div className="input-border"></div>
+                  </div>
                 </div>
 
-                <div className="text-center mt-3">
-                  <a 
-                    href="#" 
-                    className="text-decoration-none text-muted small"
-                    style={{ fontSize: '14px' }}
-                  >
-                    Forgot your password?
-                  </a>
+                <div className="form-options">
+                  <label className="checkbox-wrapper">
+                    <input
+                      type="checkbox"
+                      checked={rememberMe}
+                      onChange={(e) => setRememberMe(e.target.checked)}
+                      className="form-checkbox"
+                    />
+                    <span className="checkmark"></span>
+                    <span className="checkbox-label">Remember me</span>
+                  </label>
+                  <button type="button" className="forgot-link">
+                    Forgot password?
+                  </button>
                 </div>
+
+                <button
+                  type="submit"
+                  className={`login-button ${loading ? 'loading' : ''}`}
+                  disabled={loading}
+                >
+                  {loading ? (
+                    <>
+                      <div className="spinner"></div>
+                      <span>Signing in...</span>
+                    </>
+                  ) : (
+                    <>
+                      <i className="bi bi-box-arrow-in-right"></i>
+                      <span>Sign In</span>
+                    </>
+                  )}
+                </button>
+              </form>
+
+              <div className="divider">
+                <span>or</span>
+              </div>
+
+              <button className="google-button">
+                <i className="bi bi-google"></i>
+                <span>Continue with Google</span>
+              </button>
+
+              <div className="register-prompt">
+                <p>
+                  Don't have an account?{" "}
+                  <button type="button" className="link-primary" onClick={() => navigate('/register')}>
+                    Sign up
+                  </button>
+                </p>
               </div>
             </div>
+          </div>
 
-            {/* Footer */}
-            <div className="text-center mt-4">
-              <p className="text-white-50 small mb-0">
-                © 2024 AiAgenticCRM. All rights reserved.
-              </p>
+          {/* Footer */}
+          <div className="login-footer">
+            <p className="copyright">&copy; 2024 AiAgenticCRM. All rights reserved.</p>
+            <div className="footer-links">
+              <button type="button" className="footer-link">Privacy</button>
+              <button type="button" className="footer-link">Terms</button>
+              <button type="button" className="footer-link">Support</button>
             </div>
           </div>
         </div>

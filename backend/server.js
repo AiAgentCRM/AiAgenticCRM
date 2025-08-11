@@ -2,6 +2,7 @@ const express = require("express");
 const app = express();
 const mongoose = require("mongoose");
 const cors = require("cors");
+const fileUpload = require("express-fileupload");
 const attachedMessageHandlers = new WeakSet();
 const dotenv = require("dotenv");
 dotenv.config();
@@ -102,6 +103,15 @@ function printLeadStatus(phoneNumber, stage, message) {
 
 app.use(cors());
 app.use(express.json());
+app.use(fileUpload({
+  createParentPath: true,
+  limits: {
+    fileSize: 5 * 1024 * 1024 // 5MB limit
+  },
+}));
+
+// Serve static files for uploaded company logos
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Attach webhook routes (kept separate to avoid touching existing modules)
 try {
@@ -1747,6 +1757,74 @@ app.get('/', (req, res) => {
 
 app.get('/health', (req, res) => {
   res.json({ status: 'ok' });
+});
+
+// Company Details Management (Super Admin)
+app.get("/api/admin/company-details", async (req, res) => {
+  try {
+    // For now, we'll store company details in a simple JSON file
+    // In production, you might want to create a proper CompanyDetails model
+    const companyDetailsPath = path.join(__dirname, 'company-details.json');
+    
+    if (fs.existsSync(companyDetailsPath)) {
+      const companyDetails = JSON.parse(fs.readFileSync(companyDetailsPath, 'utf8'));
+      res.json(companyDetails);
+    } else {
+      res.json(null);
+    }
+  } catch (err) {
+    console.error('[ADMIN] Error fetching company details:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/admin/company-details", async (req, res) => {
+  try {
+    const companyDetails = req.body;
+    const companyDetailsPath = path.join(__dirname, 'company-details.json');
+    
+    // Save company details to JSON file
+    fs.writeFileSync(companyDetailsPath, JSON.stringify(companyDetails, null, 2));
+    
+    console.log('[ADMIN] Company details updated successfully');
+    res.json({ success: true, message: 'Company details updated successfully' });
+  } catch (err) {
+    console.error('[ADMIN] Error updating company details:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/admin/company-details/logo", async (req, res) => {
+  try {
+    if (!req.files || !req.files.logo) {
+      return res.status(400).json({ error: 'No logo file uploaded' });
+    }
+
+    const logoFile = req.files.logo;
+    const uploadDir = path.join(__dirname, 'uploads', 'company');
+    
+    // Create upload directory if it doesn't exist
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+
+    // Generate unique filename
+    const fileExtension = path.extname(logoFile.name);
+    const fileName = `logo_${Date.now()}${fileExtension}`;
+    const filePath = path.join(uploadDir, fileName);
+
+    // Move uploaded file
+    await logoFile.mv(filePath);
+
+    // Return the URL path
+    const logoUrl = `/uploads/company/${fileName}`;
+    
+    console.log('[ADMIN] Company logo uploaded successfully:', logoUrl);
+    res.json({ success: true, logoUrl });
+  } catch (err) {
+    console.error('[ADMIN] Error uploading company logo:', err);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // Admin endpoint to deduplicate leads for a tenant

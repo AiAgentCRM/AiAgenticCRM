@@ -17,6 +17,9 @@ import {
   resetTenantUsage,
   deduplicateLeads,
   fetchLeads,
+  fetchCompanyDetails,
+  updateCompanyDetails,
+  uploadCompanyLogo,
 } from "../services/api";
 
 const SuperAdmin = () => {
@@ -39,6 +42,11 @@ const SuperAdmin = () => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [selectedTenant, setSelectedTenant] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [companyDetails, setCompanyDetails] = useState(null);
+  const [showCompanyModal, setShowCompanyModal] = useState(false);
+  const [editingCompany, setEditingCompany] = useState(null);
+  const [logoFile, setLogoFile] = useState(null);
+  const [logoPreview, setLogoPreview] = useState(null);
 
   useEffect(() => {
     loadData();
@@ -47,14 +55,16 @@ const SuperAdmin = () => {
   const loadData = async () => {
     try {
       setLoading(true);
-      const [tenantsData, plansData, planRequestsData] = await Promise.all([
+      const [tenantsData, plansData, planRequestsData, companyData] = await Promise.all([
         fetchTenants(),
         fetchPlans(),
         fetchPlanRequests(),
+        fetchCompanyDetails(),
       ]);
       setTenants(tenantsData);
       setPlans(plansData);
       setPlanRequests(planRequestsData);
+      setCompanyDetails(companyData);
     } catch (error) {
       console.error("Failed to load data:", error);
       showMessage("Failed to load data. Please refresh the page.", "danger");
@@ -197,6 +207,64 @@ const SuperAdmin = () => {
     // Clear any admin session data
     localStorage.removeItem('adminToken');
     window.location.href = '/login';
+  };
+
+  const handleCompanySubmit = async (e) => {
+    e.preventDefault();
+    const formData = new FormData(e.target);
+    const companyData = {
+      name: formData.get("name"),
+      email: formData.get("email"),
+      phone: formData.get("phone"),
+      address: formData.get("address"),
+      city: formData.get("city"),
+      state: formData.get("state"),
+      country: formData.get("country"),
+      zipCode: formData.get("zipCode"),
+      website: formData.get("website"),
+      description: formData.get("description"),
+    };
+
+    try {
+      // Upload logo if selected
+      if (logoFile) {
+        const logoResponse = await uploadCompanyLogo(logoFile);
+        if (logoResponse.success) {
+          companyData.logo = logoResponse.logoUrl;
+        }
+      }
+
+      // Update company details
+      const response = await updateCompanyDetails(companyData);
+      if (response.success) {
+        showMessage("Company details updated successfully", "success");
+        setShowCompanyModal(false);
+        setEditingCompany(null);
+        setLogoFile(null);
+        setLogoPreview(null);
+        loadData();
+      } else {
+        showMessage(response.message || "Failed to update company details", "danger");
+      }
+    } catch (error) {
+      console.error("Failed to update company details:", error);
+      showMessage("Failed to update company details", "danger");
+    }
+  };
+
+  const handleLogoChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setLogoFile(file);
+      const reader = new FileReader();
+      reader.onload = (e) => setLogoPreview(e.target.result);
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleEditCompany = () => {
+    setEditingCompany(companyDetails);
+    setShowCompanyModal(true);
   };
 
   const filteredTenants = tenants
@@ -701,6 +769,117 @@ const SuperAdmin = () => {
             )}
           </div>
         )}
+
+        {/* Company Details Tab */}
+        {activeTab === "company" && (
+          <div className="company-section">
+            <div className="section-header">
+              <h3>Company Details</h3>
+              <button 
+                className="btn btn-primary"
+                onClick={handleEditCompany}
+              >
+                <i className="bi bi-pencil me-2"></i>
+                {companyDetails ? "Edit Details" : "Add Details"}
+              </button>
+            </div>
+
+            {companyDetails ? (
+              <div className="company-details-card">
+                <div className="company-header">
+                  <div className="company-logo">
+                    {companyDetails.logo ? (
+                      <img src={companyDetails.logo} alt="Company Logo" />
+                    ) : (
+                      <div className="logo-placeholder">
+                        <i className="bi bi-building"></i>
+                      </div>
+                    )}
+                  </div>
+                  <div className="company-info">
+                    <h4>{companyDetails.name || "Company Name"}</h4>
+                    <p className="company-description">{companyDetails.description || "No description available"}</p>
+                  </div>
+                </div>
+
+                <div className="company-details-grid">
+                  <div className="detail-item">
+                    <div className="detail-icon">
+                      <i className="bi bi-envelope"></i>
+                    </div>
+                    <div className="detail-content">
+                      <label>Email</label>
+                      <span>{companyDetails.email || "Not provided"}</span>
+                    </div>
+                  </div>
+
+                  <div className="detail-item">
+                    <div className="detail-icon">
+                      <i className="bi bi-telephone"></i>
+                    </div>
+                    <div className="detail-content">
+                      <label>Phone</label>
+                      <span>{companyDetails.phone || "Not provided"}</span>
+                    </div>
+                  </div>
+
+                  <div className="detail-item">
+                    <div className="detail-icon">
+                      <i className="bi bi-globe"></i>
+                    </div>
+                    <div className="detail-content">
+                      <label>Website</label>
+                      <span>
+                        {companyDetails.website ? (
+                          <a href={companyDetails.website} target="_blank" rel="noopener noreferrer">
+                            {companyDetails.website}
+                          </a>
+                        ) : (
+                          "Not provided"
+                        )}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="detail-item">
+                    <div className="detail-icon">
+                      <i className="bi bi-geo-alt"></i>
+                    </div>
+                    <div className="detail-content">
+                      <label>Address</label>
+                      <span>
+                        {companyDetails.address ? (
+                          <>
+                            {companyDetails.address}<br />
+                            {companyDetails.city && `${companyDetails.city}, `}
+                            {companyDetails.state && `${companyDetails.state} `}
+                            {companyDetails.zipCode && `${companyDetails.zipCode}`}<br />
+                            {companyDetails.country}
+                          </>
+                        ) : (
+                          "Not provided"
+                        )}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="empty-state">
+                <i className="bi bi-building"></i>
+                <h4>No Company Details</h4>
+                <p>Add your company information to display it across the platform.</p>
+                <button 
+                  className="btn btn-primary"
+                  onClick={handleEditCompany}
+                >
+                  <i className="bi bi-plus-circle me-2"></i>
+                  Add Company Details
+                </button>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Modals */}
@@ -929,6 +1108,250 @@ const SuperAdmin = () => {
                 Close
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Company Details Modal */}
+      {showCompanyModal && (
+        <div className="modal-overlay">
+          <div className="modal-content modal-lg">
+            <div className="modal-header">
+              <h5>{editingCompany ? "Edit Company Details" : "Add Company Details"}</h5>
+              <button 
+                className="btn-close"
+                onClick={() => {
+                  setShowCompanyModal(false);
+                  setEditingCompany(null);
+                  setLogoFile(null);
+                  setLogoPreview(null);
+                }}
+              ></button>
+            </div>
+            <form onSubmit={handleCompanySubmit}>
+              <div className="modal-body">
+                {/* Logo Upload Section */}
+                <div className="logo-upload-section">
+                  <h6 className="section-title">
+                    <i className="bi bi-image me-2"></i>
+                    Company Logo
+                  </h6>
+                  <div className="logo-upload-area">
+                    <div className="logo-preview">
+                      {logoPreview ? (
+                        <img src={logoPreview} alt="Logo Preview" />
+                      ) : editingCompany?.logo ? (
+                        <img src={editingCompany.logo} alt="Current Logo" />
+                      ) : (
+                        <div className="logo-placeholder">
+                          <i className="bi bi-building"></i>
+                          <span>No Logo</span>
+                        </div>
+                      )}
+                    </div>
+                    <div className="logo-upload-controls">
+                      <input
+                        type="file"
+                        id="logo-upload"
+                        accept="image/*"
+                        onChange={handleLogoChange}
+                        className="form-control"
+                        style={{ display: 'none' }}
+                      />
+                      <label htmlFor="logo-upload" className="btn btn-outline-primary">
+                        <i className="bi bi-upload me-2"></i>
+                        {editingCompany?.logo ? "Change Logo" : "Upload Logo"}
+                      </label>
+                      {logoPreview && (
+                        <button
+                          type="button"
+                          className="btn btn-outline-danger btn-sm"
+                          onClick={() => {
+                            setLogoFile(null);
+                            setLogoPreview(null);
+                          }}
+                        >
+                          <i className="bi bi-trash me-1"></i>
+                          Remove
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <hr />
+
+                {/* Basic Information */}
+                <div className="row">
+                  <div className="col-md-6">
+                    <div className="mb-3">
+                      <label className="form-label">
+                        <i className="bi bi-building me-2"></i>
+                        Company Name *
+                      </label>
+                      <input
+                        type="text"
+                        name="name"
+                        className="form-control"
+                        defaultValue={editingCompany?.name || ""}
+                        required
+                        placeholder="Enter company name"
+                      />
+                    </div>
+                  </div>
+                  <div className="col-md-6">
+                    <div className="mb-3">
+                      <label className="form-label">
+                        <i className="bi bi-envelope me-2"></i>
+                        Email Address *
+                      </label>
+                      <input
+                        type="email"
+                        name="email"
+                        className="form-control"
+                        defaultValue={editingCompany?.email || ""}
+                        required
+                        placeholder="Enter email address"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="row">
+                  <div className="col-md-6">
+                    <div className="mb-3">
+                      <label className="form-label">
+                        <i className="bi bi-telephone me-2"></i>
+                        Phone Number
+                      </label>
+                      <input
+                        type="tel"
+                        name="phone"
+                        className="form-control"
+                        defaultValue={editingCompany?.phone || ""}
+                        placeholder="Enter phone number"
+                      />
+                    </div>
+                  </div>
+                  <div className="col-md-6">
+                    <div className="mb-3">
+                      <label className="form-label">
+                        <i className="bi bi-globe me-2"></i>
+                        Website
+                      </label>
+                      <input
+                        type="url"
+                        name="website"
+                        className="form-control"
+                        defaultValue={editingCompany?.website || ""}
+                        placeholder="https://example.com"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mb-3">
+                  <label className="form-label">
+                    <i className="bi bi-text-paragraph me-2"></i>
+                    Company Description
+                  </label>
+                  <textarea
+                    name="description"
+                    className="form-control"
+                    rows="3"
+                    defaultValue={editingCompany?.description || ""}
+                    placeholder="Enter company description"
+                  ></textarea>
+                </div>
+
+                <hr />
+
+                {/* Address Information */}
+                <h6 className="section-title">
+                  <i className="bi bi-geo-alt me-2"></i>
+                  Address Information
+                </h6>
+
+                <div className="mb-3">
+                  <label className="form-label">Street Address</label>
+                  <input
+                    type="text"
+                    name="address"
+                    className="form-control"
+                    defaultValue={editingCompany?.address || ""}
+                    placeholder="Enter street address"
+                  />
+                </div>
+
+                <div className="row">
+                  <div className="col-md-4">
+                    <div className="mb-3">
+                      <label className="form-label">City</label>
+                      <input
+                        type="text"
+                        name="city"
+                        className="form-control"
+                        defaultValue={editingCompany?.city || ""}
+                        placeholder="Enter city"
+                      />
+                    </div>
+                  </div>
+                  <div className="col-md-4">
+                    <div className="mb-3">
+                      <label className="form-label">State/Province</label>
+                      <input
+                        type="text"
+                        name="state"
+                        className="form-control"
+                        defaultValue={editingCompany?.state || ""}
+                        placeholder="Enter state"
+                      />
+                    </div>
+                  </div>
+                  <div className="col-md-4">
+                    <div className="mb-3">
+                      <label className="form-label">ZIP/Postal Code</label>
+                      <input
+                        type="text"
+                        name="zipCode"
+                        className="form-control"
+                        defaultValue={editingCompany?.zipCode || ""}
+                        placeholder="Enter ZIP code"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mb-3">
+                  <label className="form-label">Country</label>
+                  <input
+                    type="text"
+                    name="country"
+                    className="form-control"
+                    defaultValue={editingCompany?.country || ""}
+                    placeholder="Enter country"
+                  />
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button 
+                  type="button" 
+                  className="btn btn-secondary"
+                  onClick={() => {
+                    setShowCompanyModal(false);
+                    setEditingCompany(null);
+                    setLogoFile(null);
+                    setLogoPreview(null);
+                  }}
+                >
+                  Cancel
+                </button>
+                <button type="submit" className="btn btn-primary">
+                  <i className="bi bi-save me-2"></i>
+                  {editingCompany ? "Update Details" : "Save Details"}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

@@ -49,6 +49,13 @@ const AdminSidebar = ({
       icon: "bi-gear",
       description: "Admin settings",
       badge: null
+    },
+    { 
+      id: "company", 
+      label: "Company", 
+      icon: "bi-building",
+      description: "Company details",
+      badge: null
     }
   ];
 

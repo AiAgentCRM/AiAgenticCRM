@@ -1,0 +1,4 @@
+2025/08/11-22:31:25.416 2034 Creating DB F:\AiAgenticCRM\backend\.wwebjs_auth\session-tenant_1754918042482\Default\Local Storage\leveldb since it was missing.
+2025/08/11-22:31:25.425 2034 Reusing MANIFEST F:\AiAgenticCRM\backend\.wwebjs_auth\session-tenant_1754918042482\Default\Local Storage\leveldb/MANIFEST-000001
+2025/08/11-22:31:25.426 2034 Recovering log #3
+2025/08/11-22:31:25.427 2034 Reusing old log F:\AiAgenticCRM\backend\.wwebjs_auth\session-tenant_1754918042482\Default\Local Storage\leveldb/000003.log 
