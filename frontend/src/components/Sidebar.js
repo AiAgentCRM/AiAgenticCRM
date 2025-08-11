@@ -18,7 +18,9 @@ const Sidebar = ({
 
   return (
     <div
-      className={`bg-light border-end h-100 ${isOpen ? "d-block" : "d-none d-md-block"}`}
+      className={`bg-light border-end position-sticky top-0 vh-100 overflow-auto ${
+        isOpen ? "d-block" : "d-none d-md-block"
+      }`}
       style={{ minWidth: 240 }}
     >
       <div className="p-3 border-bottom">
