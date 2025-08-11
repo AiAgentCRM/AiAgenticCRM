@@ -102,7 +102,7 @@ async function initializeDatabase() {
       {
         planId: 'silver',
         planName: 'Silver Plan',
-        price: 29.99,
+        price: 2499,
         initialMessageLimit: 1000,
         conversationLimit: 500,
         followupLimit: 3,
@@ -112,7 +112,7 @@ async function initializeDatabase() {
       {
         planId: 'gold',
         planName: 'Gold Plan',
-        price: 59.99,
+        price: 4999,
         initialMessageLimit: 2500,
         conversationLimit: 1500,
         followupLimit: 5,
@@ -122,7 +122,7 @@ async function initializeDatabase() {
       {
         planId: 'platinum',
         planName: 'Platinum Plan',
-        price: 99.99,
+        price: 8299,
         initialMessageLimit: 5000,
         conversationLimit: 3000,
         followupLimit: 10,
@@ -194,7 +194,7 @@ async function initializeDatabase() {
 
     console.log('\n💼 Subscription Plans:');
     for (const plan of defaultPlans) {
-      console.log(`   ✓ ${plan.planName} - $${plan.price}/month`);
+      console.log(`   ✓ ${plan.planName} - ₹${plan.price}/month`);
     }
 
     console.log('\n🚀 AiAgenticCRM database is ready for use!');

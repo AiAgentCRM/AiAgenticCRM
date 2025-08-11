@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import AdminSidebar from "../components/AdminSidebar";
 import {
   fetchTenants,
   approveTenant,
@@ -23,12 +24,21 @@ const SuperAdmin = () => {
   const [plans, setPlans] = useState([]);
   const [planRequests, setPlanRequests] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState("tenants");
+  const [activeTab, setActiveTab] = useState("overview");
   const [message, setMessage] = useState("");
+  const [messageType, setMessageType] = useState("info");
   const [editingPlan, setEditingPlan] = useState(null);
   const [showStats, setShowStats] = useState(false);
   const [tenantStats, setTenantStats] = useState(null);
-  const [leads, setLeads] = useState([]); // Added leads state
+  const [leads, setLeads] = useState([]);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [filterStatus, setFilterStatus] = useState("all");
+  const [sortBy, setSortBy] = useState("businessName");
+  const [sortOrder, setSortOrder] = useState("asc");
+  const [showCreatePlanModal, setShowCreatePlanModal] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [selectedTenant, setSelectedTenant] = useState(null);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
 
   useEffect(() => {
     loadData();
@@ -36,6 +46,7 @@ const SuperAdmin = () => {
 
   const loadData = async () => {
     try {
+      setLoading(true);
       const [tenantsData, plansData, planRequestsData] = await Promise.all([
         fetchTenants(),
         fetchPlans(),
@@ -46,9 +57,16 @@ const SuperAdmin = () => {
       setPlanRequests(planRequestsData);
     } catch (error) {
       console.error("Failed to load data:", error);
+      showMessage("Failed to load data. Please refresh the page.", "danger");
     } finally {
       setLoading(false);
     }
+  };
+
+  const showMessage = (msg, type = "info") => {
+    setMessage(msg);
+    setMessageType(type);
+    setTimeout(() => setMessage(""), 5000);
   };
 
   const handleTenantAction = async (action, tenantId) => {
@@ -72,18 +90,16 @@ const SuperAdmin = () => {
           break;
         case "deduplicate-leads":
           response = await deduplicateLeads(tenantId);
-          // Optionally show a toast/alert
-          alert(response.message || "Leads deduplicated");
-          // Refresh leads list for this tenant (implement fetchLeads if not present)
+          showMessage("Leads deduplicated successfully", "success");
           await fetchLeads(tenantId);
           break;
         default:
           return;
       }
-      setMessage(response.message || "Action completed successfully");
-      loadData(); // Reload data
+      showMessage(response.message || "Action completed successfully", "success");
+      loadData();
     } catch (error) {
-      setMessage("Action failed. Please try again.");
+      showMessage("Action failed. Please try again.", "danger");
     }
   };
 
@@ -105,32 +121,39 @@ const SuperAdmin = () => {
 
     try {
       await createOrUpdatePlan(planData);
-      setMessage("Plan updated successfully");
+      showMessage("Plan updated successfully", "success");
+      setShowCreatePlanModal(false);
       loadData();
     } catch (error) {
-      setMessage("Failed to update plan");
+      showMessage("Failed to update plan", "danger");
     }
   };
 
   const handlePlanRequest = async (tenantId, approve) => {
     try {
       const data = await approvePlanRequest(tenantId, approve);
-      setMessage(data.message || "Plan request processed");
+      showMessage(data.message || "Plan request processed", "success");
       loadData();
     } catch (error) {
-      setMessage("Failed to process plan request");
+      showMessage("Failed to process plan request", "danger");
     }
   };
 
-  // Plan CRUD handlers
-  const handleEditPlan = (plan) => setEditingPlan(plan);
+  const handleEditPlan = (plan) => {
+    setEditingPlan(plan);
+    setShowCreatePlanModal(true);
+  };
+
   const handleDeletePlan = async (planId) => {
-    if (window.confirm("Are you sure you want to delete this plan?")) {
+    try {
       await deletePlan(planId);
-      setMessage("Plan deleted successfully");
+      showMessage("Plan deleted successfully", "success");
       loadData();
+    } catch (error) {
+      showMessage("Failed to delete plan", "danger");
     }
   };
+
   const handlePlanFormSubmit = async (e) => {
     e.preventDefault();
     const formData = new FormData(e.target);
@@ -143,147 +166,289 @@ const SuperAdmin = () => {
       followupLimit: Number(formData.get("followupLimit")),
       features: formData.get("features").split(",").map((f) => f.trim()),
     };
-    if (editingPlan) {
-      await updatePlan(editingPlan.planId, planData);
-      setMessage("Plan updated successfully");
-    } else {
-      await createPlan(planData);
-      setMessage("Plan created successfully");
+    
+    try {
+      if (editingPlan) {
+        await updatePlan(editingPlan.planId, planData);
+        showMessage("Plan updated successfully", "success");
+      } else {
+        await createPlan(planData);
+        showMessage("Plan created successfully", "success");
+      }
+      setEditingPlan(null);
+      setShowCreatePlanModal(false);
+      loadData();
+    } catch (error) {
+      showMessage("Failed to save plan", "danger");
     }
-    setEditingPlan(null);
-    loadData();
-  };
-  // Tenant stats handler
-  const handleShowStats = async (tenantId) => {
-    const stats = await fetchTenantStats(tenantId);
-    setTenantStats(stats);
-    setShowStats(true);
   };
 
-  // Add fetchLeads function to refresh leads after deduplication
-  async function fetchLeads(tenantId) {
-    // Fetch leads and update state if you have a leads state variable
-    if (typeof setLeads === 'function') {
-      const leads = await fetchLeads(tenantId);
-      setLeads(leads);
+  const handleShowStats = async (tenantId) => {
+    try {
+      const stats = await fetchTenantStats(tenantId);
+      setTenantStats(stats);
+      setShowStats(true);
+    } catch (error) {
+      showMessage("Failed to load tenant stats", "danger");
     }
-  }
+  };
+
+  const handleLogout = () => {
+    // Clear any admin session data
+    localStorage.removeItem('adminToken');
+    window.location.href = '/login';
+  };
+
+  const filteredTenants = tenants
+    .filter((tenant) => {
+      const matchesSearch = tenant.businessName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                           tenant.ownerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                           tenant.email.toLowerCase().includes(searchTerm.toLowerCase());
+      
+      const matchesFilter = filterStatus === "all" ||
+                           (filterStatus === "active" && tenant.isActive) ||
+                           (filterStatus === "blocked" && !tenant.isActive) ||
+                           (filterStatus === "pending" && !tenant.isApproved) ||
+                           (filterStatus === "approved" && tenant.isApproved);
+      
+      return matchesSearch && matchesFilter;
+    })
+    .sort((a, b) => {
+      const aValue = a[sortBy];
+      const bValue = b[sortBy];
+      
+      if (sortOrder === "asc") {
+        return aValue > bValue ? 1 : -1;
+      } else {
+        return aValue < bValue ? 1 : -1;
+      }
+    });
+
+  const getStats = () => {
+    const totalTenants = tenants.length;
+    const activeTenants = tenants.filter(t => t.isActive).length;
+    const pendingTenants = tenants.filter(t => !t.isApproved).length;
+    const totalPlans = plans.length;
+    const pendingRequests = planRequests.length;
+
+    return { totalTenants, activeTenants, pendingTenants, totalPlans, pendingRequests };
+  };
+
+  const stats = getStats();
 
   if (loading) {
     return (
-      <div className="container mt-5">
-        <div className="text-center">Loading...</div>
+      <div className="admin-loading">
+        <div className="loading-spinner">
+          <div className="spinner-border text-primary" role="status">
+            <span className="visually-hidden">Loading...</span>
+          </div>
+          <p className="mt-3">Loading Admin Dashboard...</p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="container-fluid mt-4">
-      <h2 className="mb-4">Super Admin Dashboard</h2>
+    <div className="admin-container">
+      {/* Sidebar */}
+      <AdminSidebar
+        activeTab={activeTab}
+        onSelectTab={setActiveTab}
+        onLogout={handleLogout}
+        isOpen={sidebarOpen}
+        stats={stats}
+      />
 
-      {message && (
-        <div
-          className="alert alert-info alert-dismissible fade show"
-          role="alert"
-        >
-          {message}
-          <button
-            type="button"
-            className="btn-close"
-            onClick={() => setMessage("")}
-          ></button>
-        </div>
-      )}
-
-      <ul className="nav nav-tabs mb-4">
-        <li className="nav-item">
-          <button
-            className={`nav-link ${activeTab === "tenants" ? "active" : ""}`}
-            onClick={() => setActiveTab("tenants")}
-          >
-            Tenants
-          </button>
-        </li>
-        <li className="nav-item">
-          <button
-            className={`nav-link ${activeTab === "plans" ? "active" : ""}`}
-            onClick={() => setActiveTab("plans")}
-          >
-            Subscription Plans
-          </button>
-        </li>
-        <li className="nav-item">
-          <button
-            className={`nav-link ${
-              activeTab === "planRequests" ? "active" : ""
-            }`}
-            onClick={() => setActiveTab("planRequests")}
-          >
-            Plan Requests{" "}
-            {planRequests.length > 0 && (
-              <span className="badge bg-danger">{planRequests.length}</span>
-            )}
-          </button>
-        </li>
-      </ul>
-
-      {activeTab === "planRequests" && (
-        <div className="card">
-          <div className="card-body">
-            <h5 className="card-title">Pending Plan Change Requests</h5>
-            {planRequests.length === 0 ? (
-              <div>No pending requests.</div>
-            ) : (
-              <table className="table table-striped">
-                <thead>
-                  <tr>
-                    <th>Business Name</th>
-                    <th>Owner</th>
-                    <th>Email</th>
-                    <th>Current Plan</th>
-                    <th>Requested Plan</th>
-                    <th>Requested At</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {planRequests.map((req) => (
-                    <tr key={req.tenantId}>
-                      <td>{req.businessName}</td>
-                      <td>{req.ownerName}</td>
-                      <td>{req.email}</td>
-                      <td>{req.currentPlan}</td>
-                      <td>{req.requestedPlan}</td>
-                      <td>{new Date(req.requestedAt).toLocaleString()}</td>
-                      <td>
-                        <button
-                          className="btn btn-success btn-sm me-2"
-                          onClick={() => handlePlanRequest(req.tenantId, true)}
-                        >
-                          Approve
-                        </button>
-                        <button
-                          className="btn btn-danger btn-sm"
-                          onClick={() => handlePlanRequest(req.tenantId, false)}
-                        >
-                          Reject
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
+      {/* Main Content */}
+      <div className="admin-main-content">
+        {/* Header */}
+        <div className="admin-header">
+          <div className="header-content">
+            <div className="header-left">
+              <button 
+                className="sidebar-toggle"
+                onClick={() => setSidebarOpen(!sidebarOpen)}
+              >
+                <i className="bi bi-list"></i>
+              </button>
+              <div className="header-info">
+                <h1 className="admin-title">
+                  <i className="bi bi-shield-check"></i>
+                  AiAgenticCRM Admin Panel
+                </h1>
+                <p className="admin-subtitle">Super Admin Dashboard</p>
+              </div>
+            </div>
+            <div className="header-right">
+              <div className="admin-actions">
+                <button 
+                  className="btn btn-primary"
+                  onClick={() => setShowCreatePlanModal(true)}
+                >
+                  <i className="bi bi-plus-circle"></i>
+                  Create Plan
+                </button>
+                <button 
+                  className="btn btn-outline-secondary"
+                  onClick={loadData}
+                >
+                  <i className="bi bi-arrow-clockwise"></i>
+                  Refresh
+                </button>
+              </div>
+            </div>
           </div>
         </div>
+
+      {/* Alert Messages */}
+      {message && (
+        <div className={`alert alert-${messageType} alert-dismissible fade show admin-alert`} role="alert">
+          <i className={`bi ${messageType === 'success' ? 'bi-check-circle' : messageType === 'danger' ? 'bi-exclamation-triangle' : 'bi-info-circle'}`}></i>
+          {message}
+          <button type="button" className="btn-close" onClick={() => setMessage("")}></button>
+        </div>
       )}
 
-      {activeTab === "tenants" && (
-        <div className="card">
-          <div className="card-body">
-            <h5 className="card-title">Manage Tenants</h5>
-            <div className="table-responsive">
-              <table className="table table-striped">
+        {/* Content Area */}
+        <div className="admin-content">
+        {/* Overview Tab */}
+        {activeTab === "overview" && (
+          <div className="overview-section">
+            <div className="stats-grid">
+              <div className="stat-card">
+                <div className="stat-icon total">
+                  <i className="bi bi-people-fill"></i>
+                </div>
+                <div className="stat-content">
+                  <h3>{stats.totalTenants}</h3>
+                  <p>Total Tenants</p>
+                </div>
+              </div>
+              
+              <div className="stat-card">
+                <div className="stat-icon active">
+                  <i className="bi bi-check-circle-fill"></i>
+                </div>
+                <div className="stat-content">
+                  <h3>{stats.activeTenants}</h3>
+                  <p>Active Tenants</p>
+                </div>
+              </div>
+              
+              <div className="stat-card">
+                <div className="stat-icon pending">
+                  <i className="bi bi-clock-fill"></i>
+                </div>
+                <div className="stat-content">
+                  <h3>{stats.pendingTenants}</h3>
+                  <p>Pending Approval</p>
+                </div>
+              </div>
+              
+              <div className="stat-card">
+                <div className="stat-icon plans">
+                  <i className="bi bi-credit-card-fill"></i>
+                </div>
+                <div className="stat-content">
+                  <h3>{stats.totalPlans}</h3>
+                  <p>Subscription Plans</p>
+                </div>
+              </div>
+              
+              <div className="stat-card">
+                <div className="stat-icon requests">
+                  <i className="bi bi-exclamation-circle-fill"></i>
+                </div>
+                <div className="stat-content">
+                  <h3>{stats.pendingRequests}</h3>
+                  <p>Pending Requests</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="quick-actions">
+              <h4>Quick Actions</h4>
+              <div className="actions-grid">
+                <button 
+                  className="action-btn"
+                  onClick={() => setActiveTab("tenants")}
+                >
+                  <i className="bi bi-people"></i>
+                  Manage Tenants
+                </button>
+                <button 
+                  className="action-btn"
+                  onClick={() => setShowCreatePlanModal(true)}
+                >
+                  <i className="bi bi-plus-circle"></i>
+                  Create New Plan
+                </button>
+                <button 
+                  className="action-btn"
+                  onClick={() => setActiveTab("requests")}
+                >
+                  <i className="bi bi-clock-history"></i>
+                  Review Requests
+                </button>
+                <button 
+                  className="action-btn"
+                  onClick={loadData}
+                >
+                  <i className="bi bi-arrow-clockwise"></i>
+                  Refresh Data
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Tenants Tab */}
+        {activeTab === "tenants" && (
+          <div className="tenants-section">
+            <div className="section-header">
+              <h3>Manage Tenants</h3>
+              <div className="filters">
+                <div className="search-box">
+                  <i className="bi bi-search"></i>
+                  <input
+                    type="text"
+                    placeholder="Search tenants..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="form-control"
+                  />
+                </div>
+                <select
+                  value={filterStatus}
+                  onChange={(e) => setFilterStatus(e.target.value)}
+                  className="form-select"
+                >
+                  <option value="all">All Status</option>
+                  <option value="active">Active</option>
+                  <option value="blocked">Blocked</option>
+                  <option value="pending">Pending</option>
+                  <option value="approved">Approved</option>
+                </select>
+                <select
+                  value={`${sortBy}-${sortOrder}`}
+                  onChange={(e) => {
+                    const [field, order] = e.target.value.split('-');
+                    setSortBy(field);
+                    setSortOrder(order);
+                  }}
+                  className="form-select"
+                >
+                  <option value="businessName-asc">Name (A-Z)</option>
+                  <option value="businessName-desc">Name (Z-A)</option>
+                  <option value="email-asc">Email (A-Z)</option>
+                  <option value="email-desc">Email (Z-A)</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="table-container">
+              <table className="table table-hover">
                 <thead>
                   <tr>
                     <th>Business Name</th>
@@ -291,105 +456,94 @@ const SuperAdmin = () => {
                     <th>Email</th>
                     <th>Plan</th>
                     <th>Status</th>
-                    <th>Approved</th>
+                    <th>Approval</th>
                     <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {tenants.map((tenant) => (
+                  {filteredTenants.map((tenant) => (
                     <tr key={tenant.tenantId}>
-                      <td>{tenant.businessName}</td>
+                      <td>
+                        <div className="tenant-info">
+                          <strong>{tenant.businessName}</strong>
+                          <small className="text-muted">ID: {tenant.tenantId}</small>
+                        </div>
+                      </td>
                       <td>{tenant.ownerName}</td>
                       <td>{tenant.email}</td>
                       <td>
-                        <span
-                          className={`badge bg-${
-                            tenant.subscriptionPlan === "gold"
-                              ? "warning"
-                              : tenant.subscriptionPlan === "silver"
-                              ? "secondary"
-                              : "info"
-                          }`}
-                        >
+                        <span className={`plan-badge ${tenant.subscriptionPlan}`}>
                           {tenant.subscriptionPlan}
                         </span>
                       </td>
                       <td>
-                        <span
-                          className={`badge bg-${
-                            tenant.isActive ? "success" : "danger"
-                          }`}
-                        >
-                          {tenant.isActive ? "Active" : "Blocked"}
+                        <span className={`status-badge ${tenant.isActive ? 'active' : 'blocked'}`}>
+                          {tenant.isActive ? 'Active' : 'Blocked'}
                         </span>
                       </td>
                       <td>
-                        <span
-                          className={`badge bg-${
-                            tenant.isApproved ? "success" : "warning"
-                          }`}
-                        >
-                          {tenant.isApproved ? "Approved" : "Pending"}
+                        <span className={`approval-badge ${tenant.isApproved ? 'approved' : 'pending'}`}>
+                          {tenant.isApproved ? 'Approved' : 'Pending'}
                         </span>
                       </td>
                       <td>
-                        <div className="btn-group" role="group">
+                        <div className="action-buttons">
                           <button
                             className="btn btn-sm btn-info"
                             onClick={() => handleShowStats(tenant.tenantId)}
+                            title="View Stats"
                           >
-                            Stats
+                            <i className="bi bi-graph-up"></i>
                           </button>
                           {!tenant.isApproved && (
                             <button
                               className="btn btn-sm btn-success"
-                              onClick={() =>
-                                handleTenantAction("approve", tenant.tenantId)
-                              }
+                              onClick={() => handleTenantAction("approve", tenant.tenantId)}
+                              title="Approve"
                             >
-                              Approve
+                              <i className="bi bi-check"></i>
                             </button>
                           )}
                           {tenant.isActive ? (
                             <button
-                              className="btn btn-sm btn-danger"
-                              onClick={() =>
-                                handleTenantAction("block", tenant.tenantId)
-                              }
+                              className="btn btn-sm btn-warning"
+                              onClick={() => handleTenantAction("block", tenant.tenantId)}
+                              title="Block"
                             >
-                              Block
+                              <i className="bi bi-pause"></i>
                             </button>
                           ) : (
                             <button
-                              className="btn btn-sm btn-warning"
-                              onClick={() =>
-                                handleTenantAction("unblock", tenant.tenantId)
-                              }
+                              className="btn btn-sm btn-success"
+                              onClick={() => handleTenantAction("unblock", tenant.tenantId)}
+                              title="Unblock"
                             >
-                              Unblock
+                              <i className="bi bi-play"></i>
                             </button>
                           )}
                           <button
                             className="btn btn-sm btn-secondary"
                             onClick={() => handleTenantAction("reset-usage", tenant.tenantId)}
+                            title="Reset Usage"
                           >
-                            Reset Usage
+                            <i className="bi bi-arrow-clockwise"></i>
+                          </button>
+                          <button
+                            className="btn btn-sm btn-outline-warning"
+                            onClick={() => handleTenantAction('deduplicate-leads', tenant.tenantId)}
+                            title="Deduplicate Leads"
+                          >
+                            <i className="bi bi-funnel"></i>
                           </button>
                           <button
                             className="btn btn-sm btn-outline-danger"
-                            onClick={() =>
-                              handleTenantAction("delete", tenant.tenantId)
-                            }
+                            onClick={() => {
+                              setSelectedTenant(tenant);
+                              setShowDeleteConfirm(true);
+                            }}
+                            title="Delete"
                           >
-                            Delete
-                          </button>
-                          <button
-                            className="btn btn-sm btn-warning"
-                            onClick={() =>
-                              handleTenantAction('deduplicate-leads', tenant.tenantId)
-                            }
-                          >
-                            Deduplicate Leads
+                            <i className="bi bi-trash"></i>
                           </button>
                         </div>
                       </td>
@@ -399,155 +553,386 @@ const SuperAdmin = () => {
               </table>
             </div>
           </div>
-        </div>
-      )}
-      {/* Tenant Stats Modal */}
-      {showStats && tenantStats && (
-        <div className="modal show d-block" tabIndex="-1" style={{ background: "rgba(0,0,0,0.5)" }}>
-          <div className="modal-dialog">
-            <div className="modal-content">
-              <div className="modal-header">
-                <h5 className="modal-title">Tenant Stats</h5>
-                <button type="button" className="btn-close" onClick={() => setShowStats(false)}></button>
-              </div>
-              <div className="modal-body">
-                <p><strong>Business:</strong> {tenantStats.tenant.businessName}</p>
-                <p><strong>Plan:</strong> {tenantStats.plan?.planName}</p>
-                <p><strong>Leads:</strong> {tenantStats.leadCount}</p>
-                <p><strong>Initial Messages Sent:</strong> {tenantStats.usage.initialMessagesSent}</p>
-                <p><strong>AI Conversations:</strong> {tenantStats.usage.aiConversations}</p>
-                <p><strong>Follow-up Messages Sent:</strong> {tenantStats.usage.followupMessagesSent}</p>
-              </div>
-              <div className="modal-footer">
-                <button className="btn btn-secondary" onClick={() => setShowStats(false)}>Close</button>
-              </div>
+        )}
+
+        {/* Plans Tab */}
+        {activeTab === "plans" && (
+          <div className="plans-section">
+            <div className="section-header">
+              <h3>Subscription Plans</h3>
+              <button 
+                className="btn btn-primary"
+                onClick={() => {
+                  setEditingPlan(null);
+                  setShowCreatePlanModal(true);
+                }}
+              >
+                <i className="bi bi-plus-circle"></i>
+                Create New Plan
+              </button>
+            </div>
+
+            <div className="plans-grid">
+              {plans.map((plan) => (
+                <div key={plan.planId} className="plan-card">
+                  <div className="plan-header">
+                    <div className="plan-icon">
+                      <i className={`bi ${plan.planId === 'silver' ? 'bi-award' : plan.planId === 'gold' ? 'bi-award-fill' : 'bi-gem'}`}></i>
+                    </div>
+                    <h5>{plan.planName}</h5>
+                    <div className="plan-price">
+                      <span className="price">₹{plan.price}</span>
+                      <span className="period">/month</span>
+                    </div>
+                  </div>
+                  
+                  <div className="plan-features">
+                    <div className="feature">
+                      <i className="bi bi-chat-dots"></i>
+                      <span>{plan.initialMessageLimit} Initial Messages</span>
+                    </div>
+                    <div className="feature">
+                      <i className="bi bi-robot"></i>
+                      <span>{plan.conversationLimit} AI Conversations</span>
+                    </div>
+                    <div className="feature">
+                      <i className="bi bi-arrow-repeat"></i>
+                      <span>{plan.followupLimit} Follow-up Messages</span>
+                    </div>
+                    {plan.features && plan.features.length > 0 && (
+                      <div className="feature">
+                        <i className="bi bi-star"></i>
+                        <span>{plan.features.join(", ")}</span>
+                      </div>
+                    )}
+                  </div>
+                  
+                  <div className="plan-actions">
+                    <button 
+                      className="btn btn-outline-primary btn-sm"
+                      onClick={() => handleEditPlan(plan)}
+                    >
+                      <i className="bi bi-pencil"></i>
+                      Edit
+                    </button>
+                    <button 
+                      className="btn btn-outline-danger btn-sm"
+                      onClick={() => handleDeletePlan(plan.planId)}
+                    >
+                      <i className="bi bi-trash"></i>
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
-        </div>
-      )}
-      {activeTab === "plans" && (
-        <div className="row">
-          <div className="col-md-6">
-            <div className="card">
-              <div className="card-body">
-                <h5 className="card-title">Current Plans</h5>
-                {plans.map((plan) => (
-                  <div key={plan.planId} className="card mb-3">
-                    <div className="card-body">
-                      <h6 className="card-title">{plan.planName}</h6>
-                      <p className="card-text">
-                        <strong>Price:</strong> ${plan.price}/month<br />
-                        <strong>Initial Messages:</strong> {plan.initialMessageLimit}<br />
-                        <strong>AI Conversations:</strong> {plan.conversationLimit}<br />
-                        <strong>Follow-up Messages:</strong> {plan.followupLimit}<br />
-                        <strong>Features:</strong> {plan.features?.join(", ")}
-                      </p>
-                      <button className="btn btn-sm btn-info me-2" onClick={() => handleEditPlan(plan)}>Edit</button>
-                      <button className="btn btn-sm btn-danger" onClick={() => handleDeletePlan(plan.planId)}>Delete</button>
+        )}
+
+        {/* Requests Tab */}
+        {activeTab === "requests" && (
+          <div className="requests-section">
+            <div className="section-header">
+              <h3>Plan Change Requests</h3>
+              <span className="request-count">{planRequests.length} pending requests</span>
+            </div>
+
+            {planRequests.length === 0 ? (
+              <div className="empty-state">
+                <i className="bi bi-check-circle"></i>
+                <h4>No Pending Requests</h4>
+                <p>All plan change requests have been processed.</p>
+              </div>
+            ) : (
+              <div className="requests-grid">
+                {planRequests.map((req) => (
+                  <div key={req.tenantId} className="request-card">
+                    <div className="request-header">
+                      <div className="tenant-info">
+                        <h6>{req.businessName}</h6>
+                        <p>{req.ownerName} • {req.email}</p>
+                      </div>
+                      <div className="request-status pending">
+                        <i className="bi bi-clock"></i>
+                        Pending
+                      </div>
+                    </div>
+                    
+                    <div className="plan-change">
+                      <div className="current-plan">
+                        <span className="label">Current:</span>
+                        <span className="plan-name">{req.currentPlan}</span>
+                      </div>
+                      <div className="change-arrow">
+                        <i className="bi bi-arrow-right"></i>
+                      </div>
+                      <div className="requested-plan">
+                        <span className="label">Requested:</span>
+                        <span className="plan-name">{req.requestedPlan}</span>
+                      </div>
+                    </div>
+                    
+                    <div className="request-meta">
+                      <span className="request-date">
+                        <i className="bi bi-calendar"></i>
+                        {new Date(req.requestedAt).toLocaleDateString()}
+                      </span>
+                    </div>
+                    
+                    <div className="request-actions">
+                      <button
+                        className="btn btn-success btn-sm"
+                        onClick={() => handlePlanRequest(req.tenantId, true)}
+                      >
+                        <i className="bi bi-check"></i>
+                        Approve
+                      </button>
+                      <button
+                        className="btn btn-danger btn-sm"
+                        onClick={() => handlePlanRequest(req.tenantId, false)}
+                      >
+                        <i className="bi bi-x"></i>
+                        Reject
+                      </button>
                     </div>
                   </div>
                 ))}
               </div>
-            </div>
+            )}
           </div>
-          <div className="col-md-6">
-            <div className="card">
-              <div className="card-body">
-                <h5 className="card-title">{editingPlan ? "Edit Plan" : "Create Plan"}</h5>
-                <form onSubmit={handlePlanFormSubmit}>
-                  <div className="mb-3">
-                    <label className="form-label">Plan ID</label>
-                    <input
-                      type="text"
-                      name="planId"
-                      className="form-control"
-                      defaultValue={editingPlan?.planId || ""}
-                      required
-                      disabled={!!editingPlan}
-                    />
+        )}
+      </div>
+
+      {/* Modals */}
+      
+      {/* Create/Edit Plan Modal */}
+      {showCreatePlanModal && (
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <div className="modal-header">
+              <h5>{editingPlan ? "Edit Plan" : "Create New Plan"}</h5>
+              <button 
+                className="btn-close"
+                onClick={() => {
+                  setShowCreatePlanModal(false);
+                  setEditingPlan(null);
+                }}
+              ></button>
+            </div>
+            <form onSubmit={handlePlanFormSubmit}>
+              <div className="modal-body">
+                <div className="row">
+                  <div className="col-md-6">
+                    <div className="mb-3">
+                      <label className="form-label">Plan ID</label>
+                      <input
+                        type="text"
+                        name="planId"
+                        className="form-control"
+                        defaultValue={editingPlan?.planId || ""}
+                        required
+                        disabled={!!editingPlan}
+                      />
+                    </div>
                   </div>
-                  <div className="mb-3">
-                    <label className="form-label">Plan Name</label>
-                    <input
-                      type="text"
-                      name="planName"
-                      className="form-control"
-                      defaultValue={editingPlan?.planName || ""}
-                      required
-                    />
+                  <div className="col-md-6">
+                    <div className="mb-3">
+                      <label className="form-label">Plan Name</label>
+                      <input
+                        type="text"
+                        name="planName"
+                        className="form-control"
+                        defaultValue={editingPlan?.planName || ""}
+                        required
+                      />
+                    </div>
                   </div>
-                  <div className="mb-3">
-                    <label className="form-label">Price (USD/month)</label>
-                    <input
-                      type="number"
-                      name="price"
-                      className="form-control"
-                      min="0"
-                      step="0.01"
-                      defaultValue={editingPlan?.price || ""}
-                      required
-                    />
+                </div>
+                
+                <div className="row">
+                  <div className="col-md-6">
+                    <div className="mb-3">
+                      <label className="form-label">Price (₹/month)</label>
+                      <input
+                        type="number"
+                        name="price"
+                        className="form-control"
+                        min="0"
+                        step="0.01"
+                        defaultValue={editingPlan?.price || ""}
+                        required
+                      />
+                    </div>
                   </div>
-                  <div className="mb-3">
-                    <label className="form-label">Initial Message Limit</label>
-                    <input
-                      type="number"
-                      name="initialMessageLimit"
-                      className="form-control"
-                      min="1"
-                      defaultValue={editingPlan?.initialMessageLimit || ""}
-                      required
-                    />
+                  <div className="col-md-6">
+                    <div className="mb-3">
+                      <label className="form-label">Initial Message Limit</label>
+                      <input
+                        type="number"
+                        name="initialMessageLimit"
+                        className="form-control"
+                        min="1"
+                        defaultValue={editingPlan?.initialMessageLimit || ""}
+                        required
+                      />
+                    </div>
                   </div>
-                  <div className="mb-3">
-                    <label className="form-label">AI Conversation Limit</label>
-                    <input
-                      type="number"
-                      name="conversationLimit"
-                      className="form-control"
-                      min="1"
-                      defaultValue={editingPlan?.conversationLimit || ""}
-                      required
-                    />
+                </div>
+                
+                <div className="row">
+                  <div className="col-md-6">
+                    <div className="mb-3">
+                      <label className="form-label">AI Conversation Limit</label>
+                      <input
+                        type="number"
+                        name="conversationLimit"
+                        className="form-control"
+                        min="1"
+                        defaultValue={editingPlan?.conversationLimit || ""}
+                        required
+                      />
+                    </div>
                   </div>
-                  <div className="mb-3">
-                    <label className="form-label">Follow-up Message Limit</label>
-                    <input
-                      type="number"
-                      name="followupLimit"
-                      className="form-control"
-                      min="1"
-                      defaultValue={editingPlan?.followupLimit || ""}
-                      required
-                    />
+                  <div className="col-md-6">
+                    <div className="mb-3">
+                      <label className="form-label">Follow-up Message Limit</label>
+                      <input
+                        type="number"
+                        name="followupLimit"
+                        className="form-control"
+                        min="1"
+                        defaultValue={editingPlan?.followupLimit || ""}
+                        required
+                      />
+                    </div>
                   </div>
-                  <div className="mb-3">
-                    <label className="form-label">Features (comma-separated)</label>
-                    <input
-                      type="text"
-                      name="features"
-                      className="form-control"
-                      defaultValue={editingPlan?.features?.join(", ") || ""}
-                    />
-                  </div>
-                  <button type="submit" className="btn btn-primary">
-                    {editingPlan ? "Update Plan" : "Create Plan"}
-                  </button>
-                  {editingPlan && (
-                    <button
-                      type="button"
-                      className="btn btn-secondary ms-2"
-                      onClick={() => setEditingPlan(null)}
-                    >
-                      Cancel
-                    </button>
-                  )}
-                </form>
+                </div>
+                
+                <div className="mb-3">
+                  <label className="form-label">Features (comma-separated)</label>
+                  <input
+                    type="text"
+                    name="features"
+                    className="form-control"
+                    defaultValue={editingPlan?.features?.join(", ") || ""}
+                    placeholder="e.g., Priority Support, Advanced Analytics, Custom Branding"
+                  />
+                </div>
               </div>
+              <div className="modal-footer">
+                <button 
+                  type="button" 
+                  className="btn btn-secondary"
+                  onClick={() => {
+                    setShowCreatePlanModal(false);
+                    setEditingPlan(null);
+                  }}
+                >
+                  Cancel
+                </button>
+                <button type="submit" className="btn btn-primary">
+                  {editingPlan ? "Update Plan" : "Create Plan"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirm && selectedTenant && (
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <div className="modal-header">
+              <h5>Confirm Deletion</h5>
+              <button 
+                className="btn-close"
+                onClick={() => {
+                  setShowDeleteConfirm(false);
+                  setSelectedTenant(null);
+                }}
+              ></button>
+            </div>
+            <div className="modal-body">
+              <p>Are you sure you want to delete the tenant <strong>{selectedTenant.businessName}</strong>?</p>
+              <p className="text-danger">This action cannot be undone and will permanently remove all tenant data.</p>
+            </div>
+            <div className="modal-footer">
+              <button 
+                className="btn btn-secondary"
+                onClick={() => {
+                  setShowDeleteConfirm(false);
+                  setSelectedTenant(null);
+                }}
+              >
+                Cancel
+              </button>
+              <button 
+                className="btn btn-danger"
+                onClick={() => {
+                  handleTenantAction("delete", selectedTenant.tenantId);
+                  setShowDeleteConfirm(false);
+                  setSelectedTenant(null);
+                }}
+              >
+                Delete Tenant
+              </button>
             </div>
           </div>
         </div>
       )}
+
+      {/* Tenant Stats Modal */}
+      {showStats && tenantStats && (
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <div className="modal-header">
+              <h5>Tenant Statistics</h5>
+              <button 
+                className="btn-close"
+                onClick={() => setShowStats(false)}
+              ></button>
+            </div>
+            <div className="modal-body">
+              <div className="stats-grid">
+                <div className="stat-item">
+                  <label>Business Name</label>
+                  <span>{tenantStats.tenant.businessName}</span>
+                </div>
+                <div className="stat-item">
+                  <label>Current Plan</label>
+                  <span>{tenantStats.plan?.planName || 'Unknown'}</span>
+                </div>
+                <div className="stat-item">
+                  <label>Total Leads</label>
+                  <span>{tenantStats.leadCount}</span>
+                </div>
+                <div className="stat-item">
+                  <label>Initial Messages Sent</label>
+                  <span>{tenantStats.usage.initialMessagesSent}</span>
+                </div>
+                <div className="stat-item">
+                  <label>AI Conversations</label>
+                  <span>{tenantStats.usage.aiConversations}</span>
+                </div>
+                <div className="stat-item">
+                  <label>Follow-up Messages</label>
+                  <span>{tenantStats.usage.followupMessagesSent}</span>
+                </div>
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button 
+                className="btn btn-secondary"
+                onClick={() => setShowStats(false)}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      </div>
     </div>
   );
 };

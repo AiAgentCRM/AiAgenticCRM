@@ -295,7 +295,7 @@ const Register = () => {
                               </div>
                               <h6 className="card-title fw-bold mb-2">{plan.planName}</h6>
                               <h5 className="text-primary fw-bold mb-3">
-                                ${plan.price}
+                                ₹{plan.price}
                                 <small className="text-muted fw-normal">/month</small>
                               </h5>
                               <ul className="list-unstyled text-muted small mb-3">
