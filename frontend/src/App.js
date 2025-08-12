@@ -10,8 +10,6 @@ import Register from "./pages/Register";
 import SuperAdmin from "./pages/SuperAdmin";
 import TenantDashboard from "./pages/TenantDashboard";
 import "bootstrap/dist/css/bootstrap.min.css";
-// If you don't have bootstrap-icons installed, comment the next line or install the package
-// import "bootstrap-icons/font/bootstrap-icons.css";
 
 function App() {
   return (

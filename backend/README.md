@@ -9,9 +9,9 @@ This backend is being refactored to support:
 - OpenAI GPT-4 integration (smart replies, lead scoring)
 - Docker support
 
-# AiAgenticCRM - AI-Powered Customer Relationship Management
+# AiAgenticCRM - WhatsApp Autoresponder with AI Lead Qualification
 
-A sophisticated AI Agentic CRM system with WhatsApp integration that automatically qualifies leads and provides intelligent responses using AI.
+A sophisticated WhatsApp autoresponder system for IT companies that automatically qualifies leads and provides intelligent responses using Groq AI.
 
 ## 🚀 Features
 

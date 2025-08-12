@@ -2,7 +2,6 @@ const express = require("express");
 const app = express();
 const mongoose = require("mongoose");
 const cors = require("cors");
-const fileUpload = require("express-fileupload");
 const attachedMessageHandlers = new WeakSet();
 const dotenv = require("dotenv");
 dotenv.config();
@@ -77,11 +76,9 @@ function determineLeadStage(message, phoneNumber, leadStages) {
   ];
   const stagesToUse = Array.isArray(leadStages) && leadStages.length > 0 ? leadStages : defaultStages;
   for (const stageInfo of stagesToUse) {
-    // Case-insensitive keyword matching using lower-cased, trimmed keywords
-    const keywordMatches = (stageInfo.keywords || [])
-      .map((k) => (k || "").toLowerCase().trim())
-      .filter(Boolean)
-      .filter((keyword) => lowerMessage.includes(keyword));
+    const keywordMatches = (stageInfo.keywords || []).filter((keyword) =>
+      lowerMessage.includes(keyword)
+    );
     if (keywordMatches.length > 0) {
       const stageConfidence = keywordMatches.length / (stageInfo.keywords ? stageInfo.keywords.length : 1);
       if (stageConfidence > confidence) {
@@ -103,29 +100,38 @@ function printLeadStatus(phoneNumber, stage, message) {
 
 app.use(cors());
 app.use(express.json());
-app.use(fileUpload({
-  createParentPath: true,
-  limits: {
-    fileSize: 5 * 1024 * 1024 // 5MB limit
-  },
-}));
 
-// Serve static files for uploaded company logos
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+// Root route
+app.get("/", (req, res) => {
+  res.json({
+    message: "AiAgenticCRM API is running!",
+    version: "1.0.0",
+    status: "active",
+    timestamp: new Date().toISOString(),
+    endpoints: {
+      health: "/api/health",
+      leads: "/api/leads",
+      messages: "/api/messages",
+      settings: "/api/settings",
+      knowledgebase: "/api/knowledgebase",
+      whatsapp: "/api/whatsapp"
+    }
+  });
+});
 
-// Attach webhook routes (kept separate to avoid touching existing modules)
-try {
-  const attachWebhookRoutes = require("./routes/webhook");
-  attachWebhookRoutes(app, io);
-  console.log("✅ Webhook routes attached");
-} catch (e) {
-  console.error("⚠ Failed to attach webhook routes:", e.message);
-}
+// Health check endpoint
+app.get("/api/health", (req, res) => {
+  res.json({ 
+    status: "healthy", 
+    timestamp: new Date().toISOString(),
+    database: "connected"
+  });
+});
 
 // MongoDB Connection with proper error handling
 const connectDB = async () => {
   try {
-    const mongoURI = process.env.MONGODB_URI || "mongodb+srv://aiagenticcrm:TechDB%40%232025@cluster0.d2sgkdm.mongodb.net/aiagentcrm?retryWrites=true&w=majority&appName=Cluster0";
+    const mongoURI = process.env.MONGODB_URI || "mongodb://localhost:27017/whatsappautoresponder";
     console.log("🔌 Attempting to connect to MongoDB...");
     console.log("📡 Connection string:", mongoURI.replace(/\/\/[^:]+:[^@]+@/, "//***:***@")); // Hide credentials in logs
     
@@ -473,7 +479,7 @@ app.put(
   authenticateToken,
   tenantMiddleware,
   async (req, res) => {
-    const { notes, autoFollowupEnabled, detectedStage, aiEnabled } = req.body;
+    const { notes, autoFollowupEnabled, detectedStage } = req.body;
     const lead = await Lead.findOne({
       _id: req.params.id,
       tenantId: req.tenantId,
@@ -483,13 +489,8 @@ app.put(
     if (autoFollowupEnabled !== undefined)
       lead.autoFollowupEnabled = autoFollowupEnabled;
     if (detectedStage !== undefined) lead.detectedStage = detectedStage;
-    if (aiEnabled !== undefined) lead.aiEnabled = !!aiEnabled;
-      await lead.save();
-      // Emit real-time update so all clients reflect changes without reload
-      try {
-        io.to(req.tenantId).emit('lead-updated', lead);
-      } catch (_) {}
-      res.json(lead);
+    await lead.save();
+    res.json(lead);
   }
 );
 // --- Always provide default lead stages in settings API ---
@@ -1106,30 +1107,12 @@ async function handleIncomingMessage(message, tenantId) {
   });
   if (!plan) return;
 
-  // Normalize phone and upsert lead immediately so stage detection can update UI without reload
-  let lead = null;
-  let normalizedFrom = null;
-  try {
-    normalizedFrom = cleanPhoneNumber(message.from.replace(/@c\.us$/, ""));
-    lead = await Lead.findOne({ tenantId, phone: normalizedFrom });
-    if (lead) {
-      if (lead.source !== "Incoming Message") {
-        lead.source = "Incoming Message";
-      }
-      lead.lastRespondedAt = new Date();
-    } else {
-      lead = new Lead({
-        tenantId,
-        name: "WhatsApp User",
-        phone: normalizedFrom,
-        status: "New",
-        source: "Incoming Message",
-        timestamp: new Date(),
-        lastRespondedAt: new Date(),
-      });
-    }
-  } catch (e) {
-    console.error(`[${tenantId}] Error finding/creating lead for incoming msg:`, e.message);
+  // Check conversation limit
+  if (tenant.monthlyUsage.aiConversations >= plan.conversationLimit) {
+    console.log(
+      `[${tenantId}] AI conversation limit reached (${plan.conversationLimit})`
+    );
+    return;
   }
 
   // Fetch tenant-specific settings and knowledgebase
@@ -1140,44 +1123,11 @@ async function handleIncomingMessage(message, tenantId) {
     knowledgebase = await Knowledgebase.findOne({ tenantId });
   } catch (e) {
     console.error(`[${tenantId}] Error fetching settings/knowledgebase for AI reply:`, e.message);
-  }
-
-  // Determine and update lead stage using tenant keywords (even if knowledgebase missing)
-  try {
-    const leadStages = Array.isArray(settings?.leadStages) ? settings.leadStages : [];
-    const leadStage = determineLeadStage(message.body, message.from, leadStages);
-    console.log(`[${tenantId}] Detected stage for ${message.from}:`, leadStage ? leadStage.stage : "UNKNOWN");
-    printLeadStatus(message.from, leadStage, message.body);
-    if (lead) {
-      if (leadStage && leadStage.stage) {
-        lead.detectedStage = leadStage.stage;
-      }
-      await lead.save();
-      // Emit real-time update to frontend for this tenant
-      if (io && tenantId) {
-        io.to(tenantId).emit('lead-updated', lead);
-      }
-    }
-  } catch (err) {
-    console.error(`[${tenantId}] Error updating detectedStage for lead:`, err.message);
-  }
-
-  // Respect per-lead AI toggle: if disabled, do not reply with AI
-  if (lead && lead.aiEnabled === false) {
-    console.log(`[${tenantId}] AI disabled for lead ${lead.phone}. Skipping AI reply.`);
-    return;
-  }
-
-  // Check conversation limit for AI replies only (do not block stage detection)
-  if (tenant.monthlyUsage.aiConversations >= plan.conversationLimit) {
-    console.log(
-      `[${tenantId}] AI conversation limit reached (${plan.conversationLimit})`
-    );
     return;
   }
 
   if (!knowledgebase?.content) {
-    console.log(`[${tenantId}] No knowledgebase content found. Skipping AI reply.`);
+    console.log(`[${tenantId}] No knowledgebase content found. Cannot provide AI reply.`);
     return;
   }
 
@@ -1208,6 +1158,17 @@ async function handleIncomingMessage(message, tenantId) {
     }
   } catch (error) {
     console.error(`[${tenantId}] Error in AI reply:`, error.message);
+  }
+  // Update lastRespondedAt for the lead
+  try {
+    const normalizedFrom = cleanPhoneNumber(message.from.replace(/@c\.us$/, ""));
+    const lead = await Lead.findOne({ tenantId, phone: normalizedFrom });
+    if (lead) {
+      lead.lastRespondedAt = new Date();
+      await lead.save();
+    }
+  } catch (err) {
+    console.error("Error updating lastRespondedAt for lead:", err.message);
   }
 }
 async function getGroqReply(userId, message, memory, systemPrompt) {
@@ -1709,11 +1670,6 @@ app.get("/api/:tenantId/whatsapp/status", authenticateToken, tenantMiddleware, a
             } catch (err) {
               console.error(`[${tenantId}] Error updating detectedStage for lead:`, err.message);
             }
-            // Respect per-lead AI toggle: if disabled, do not send AI reply
-            if (lead && lead.aiEnabled === false) {
-              console.log(`[${tenantId}] AI disabled for lead ${lead.phone}. Skipping AI reply.`);
-              return;
-            }
             // Use the correct knowledgebase for AI reply (send only ONCE)
             try {
               if (knowledgebase && knowledgebase.content) {
@@ -1749,83 +1705,6 @@ app.get("/api/:tenantId/whatsapp/status", authenticateToken, tenantMiddleware, a
     console.error("Error initializing WhatsApp clients for tenants:", err.message);
   }
 })();
-
-// --- Basic health and root endpoints ---
-app.get('/', (req, res) => {
-  res.send('AiAgenticCRM API is running');
-});
-
-app.get('/health', (req, res) => {
-  res.json({ status: 'ok' });
-});
-
-// Company Details Management (Super Admin)
-app.get("/api/admin/company-details", async (req, res) => {
-  try {
-    // For now, we'll store company details in a simple JSON file
-    // In production, you might want to create a proper CompanyDetails model
-    const companyDetailsPath = path.join(__dirname, 'company-details.json');
-    
-    if (fs.existsSync(companyDetailsPath)) {
-      const companyDetails = JSON.parse(fs.readFileSync(companyDetailsPath, 'utf8'));
-      res.json(companyDetails);
-    } else {
-      res.json(null);
-    }
-  } catch (err) {
-    console.error('[ADMIN] Error fetching company details:', err);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-app.post("/api/admin/company-details", async (req, res) => {
-  try {
-    const companyDetails = req.body;
-    const companyDetailsPath = path.join(__dirname, 'company-details.json');
-    
-    // Save company details to JSON file
-    fs.writeFileSync(companyDetailsPath, JSON.stringify(companyDetails, null, 2));
-    
-    console.log('[ADMIN] Company details updated successfully');
-    res.json({ success: true, message: 'Company details updated successfully' });
-  } catch (err) {
-    console.error('[ADMIN] Error updating company details:', err);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-app.post("/api/admin/company-details/logo", async (req, res) => {
-  try {
-    if (!req.files || !req.files.logo) {
-      return res.status(400).json({ error: 'No logo file uploaded' });
-    }
-
-    const logoFile = req.files.logo;
-    const uploadDir = path.join(__dirname, 'uploads', 'company');
-    
-    // Create upload directory if it doesn't exist
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
-    }
-
-    // Generate unique filename
-    const fileExtension = path.extname(logoFile.name);
-    const fileName = `logo_${Date.now()}${fileExtension}`;
-    const filePath = path.join(uploadDir, fileName);
-
-    // Move uploaded file
-    await logoFile.mv(filePath);
-
-    // Return the URL path
-    const logoUrl = `/uploads/company/${fileName}`;
-    
-    console.log('[ADMIN] Company logo uploaded successfully:', logoUrl);
-    res.json({ success: true, logoUrl });
-  } catch (err) {
-    console.error('[ADMIN] Error uploading company logo:', err);
-    res.status(500).json({ error: err.message });
-  }
-});
 
 // Admin endpoint to deduplicate leads for a tenant
 app.post("/api/admin/deduplicate-leads/:tenantId", async (req, res) => {
@@ -1869,7 +1748,7 @@ app.post("/api/admin/deduplicate-leads/:tenantId", async (req, res) => {
 
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => {
-  console.log(`🚀 AiAgenticCRM - Multi-tenant AI CRM running on port ${PORT}`);
+  console.log(`🚀 Multi-tenant WhatsApp Autoresponder running on port ${PORT}`);
 });
 
 // --- Global error handlers to prevent server crash ---

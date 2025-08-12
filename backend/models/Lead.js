@@ -28,8 +28,6 @@ const leadSchema = new mongoose.Schema({
   },
   notes: { type: String },
   autoFollowupEnabled: { type: Boolean, default: false },
-  // Controls whether AI is allowed to respond for this lead
-  aiEnabled: { type: Boolean, default: true },
   detectedStage: { type: String, default: "" },
   lastRespondedAt: { type: Date },
 });

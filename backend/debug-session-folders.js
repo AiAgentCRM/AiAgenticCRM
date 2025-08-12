@@ -4,7 +4,7 @@ const mongoose = require('mongoose');
 require('dotenv').config();
 
 // Connect to MongoDB
-mongoose.connect(process.env.MONGODB_URI || "mongodb+srv://aiagenticcrm:TechDB%40%232025@cluster0.d2sgkdm.mongodb.net/aiagentcrm?retryWrites=true&w=majority&appName=Cluster0", {
+mongoose.connect(process.env.MONGODB_URI || "mongodb://localhost:27017/whatsappautoresponder", {
   useNewUrlParser: true,
   useUnifiedTopology: true,
 });

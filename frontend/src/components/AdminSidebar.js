@@ -1,176 +1,118 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import './AdminSidebar.css';
 
-const AdminSidebar = ({
-  activeTab,
-  onSelectTab,
-  onLogout,
-  isOpen = true,
-  stats = {}
-}) => {
-  const tabs = [
-    { 
-      id: "overview", 
-      label: "Overview", 
-      icon: "bi-speedometer2",
-      description: "Dashboard overview",
-      badge: null
+const AdminSidebar = ({ activeTab, setActiveTab, onLogout, isMobileOpen }) => {
+  const [isCollapsed, setIsCollapsed] = useState(false);
+
+  const menuItems = [
+    {
+      id: 'tenants',
+      label: 'Tenants',
+      icon: '🏢',
+      description: 'Manage tenant accounts'
     },
-    { 
-      id: "tenants", 
-      label: "Tenants", 
-      icon: "bi-people",
-      description: "Manage business tenants",
-      badge: stats.totalTenants || 0
+    {
+      id: 'plans',
+      label: 'Subscription Plans',
+      icon: '📋',
+      description: 'Manage subscription plans'
     },
-    { 
-      id: "plans", 
-      label: "Plans", 
-      icon: "bi-credit-card",
-      description: "Subscription plans",
-      badge: stats.totalPlans || 0
-    },
-    { 
-      id: "requests", 
-      label: "Requests", 
-      icon: "bi-clock-history",
-      description: "Plan change requests",
-      badge: stats.pendingRequests || 0
-    },
-    { 
-      id: "analytics", 
-      label: "Analytics", 
-      icon: "bi-graph-up",
-      description: "System analytics",
-      badge: null
-    },
-    { 
-      id: "settings", 
-      label: "Settings", 
-      icon: "bi-gear",
-      description: "Admin settings",
-      badge: null
-    },
-    { 
-      id: "company", 
-      label: "Company", 
-      icon: "bi-building",
-      description: "Company details",
-      badge: null
+    {
+      id: 'planRequests',
+      label: 'Plan Requests',
+      icon: '📝',
+      description: 'Review plan change requests'
     }
   ];
 
+  const handleLogout = () => {
+    if (onLogout) {
+      onLogout();
+    }
+  };
+
+  // Handle mobile responsiveness
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth > 768) {
+        setIsCollapsed(false);
+      }
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   return (
-    <div className={`admin-sidebar ${isOpen ? "show" : ""}`}>
+    <div className={`admin-sidebar ${isCollapsed ? 'collapsed' : ''} ${isMobileOpen ? 'mobile-open' : ''}`}>
       {/* Sidebar Header */}
-      <div className="sidebar-header">
-        <div className="brand-section">
-          <div className="brand-icon">
-            <i className="bi bi-shield-check"></i>
-          </div>
-          <div className="brand-info">
-            <h5 className="brand-name">AiAgenticCRM</h5>
-            <p className="brand-subtitle">Admin Panel</p>
-          </div>
+      <div className="admin-sidebar-header">
+        <div className="admin-sidebar-brand">
+          <div className="admin-brand-icon">👑</div>
+          {!isCollapsed && (
+            <div className="admin-brand-text">
+              <h3>Admin Panel</h3>
+              <small>AiAgenticCRM</small>
+            </div>
+          )}
         </div>
-        <div className="admin-info">
-          <div className="admin-avatar">
-            <i className="bi bi-person-circle"></i>
-          </div>
-          <div className="admin-details">
-            <span className="admin-name">Super Admin</span>
-            <span className="admin-role">System Administrator</span>
-          </div>
+        <button
+          className="admin-sidebar-toggle"
+          onClick={() => setIsCollapsed(!isCollapsed)}
+          aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+        >
+          {isCollapsed ? '→' : '←'}
+        </button>
+      </div>
+
+      {/* User Info */}
+      <div className="admin-sidebar-user">
+        <div className="admin-user-avatar">
+          <span>👤</span>
         </div>
+        {!isCollapsed && (
+          <div className="admin-user-info">
+            <div className="admin-user-name">Super Admin</div>
+            <div className="admin-user-role">System Administrator</div>
+          </div>
+        )}
       </div>
 
       {/* Navigation Menu */}
-      <div className="sidebar-nav">
-        <div className="nav-section">
-          <h6 className="nav-title">Main Navigation</h6>
-          <div className="nav-items">
-            {tabs.map((tab) => (
+      <nav className="admin-sidebar-nav">
+        <ul className="admin-nav-list">
+          {menuItems.map((item) => (
+            <li key={item.id} className="admin-nav-item">
               <button
-                key={tab.id}
-                className={`nav-item ${activeTab === tab.id ? "active" : ""}`}
-                onClick={() => onSelectTab(tab.id)}
+                className={`admin-nav-link ${activeTab === item.id ? 'active' : ''}`}
+                onClick={() => {
+                  setActiveTab(item.id);
+                }}
+                title={isCollapsed ? item.description : ''}
               >
-                <div className="nav-icon">
-                  <i className={`bi ${tab.icon}`}></i>
-                </div>
-                <div className="nav-content">
-                  <span className="nav-label">{tab.label}</span>
-                  <span className="nav-description">{tab.description}</span>
-                </div>
-                {tab.badge && (
-                  <div className="nav-badge">
-                    <span className="badge-count">{tab.badge}</span>
-                  </div>
-                )}
-                {activeTab === tab.id && (
-                  <div className="nav-indicator">
-                    <i className="bi bi-chevron-right"></i>
-                  </div>
+                <span className="admin-nav-icon">{item.icon}</span>
+                {!isCollapsed && (
+                  <>
+                    <span className="admin-nav-label">{item.label}</span>
+                    <span className="admin-nav-description">{item.description}</span>
+                  </>
                 )}
               </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Quick Stats */}
-        <div className="nav-section">
-          <h6 className="nav-title">Quick Stats</h6>
-          <div className="quick-stats">
-            <div className="stat-item">
-              <div className="stat-icon active">
-                <i className="bi bi-check-circle"></i>
-              </div>
-              <div className="stat-info">
-                <span className="stat-value">{stats.activeTenants || 0}</span>
-                <span className="stat-label">Active</span>
-              </div>
-            </div>
-            <div className="stat-item">
-              <div className="stat-icon pending">
-                <i className="bi bi-clock"></i>
-              </div>
-              <div className="stat-info">
-                <span className="stat-value">{stats.pendingTenants || 0}</span>
-                <span className="stat-label">Pending</span>
-              </div>
-            </div>
-            <div className="stat-item">
-              <div className="stat-icon requests">
-                <i className="bi bi-exclamation-circle"></i>
-              </div>
-              <div className="stat-info">
-                <span className="stat-value">{stats.pendingRequests || 0}</span>
-                <span className="stat-label">Requests</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+            </li>
+          ))}
+        </ul>
+      </nav>
 
       {/* Sidebar Footer */}
-      <div className="sidebar-footer">
-        <div className="footer-section">
-          <div className="system-status">
-            <div className="status-indicator">
-              <div className="status-dot online"></div>
-              <span className="status-text">System Online</span>
-            </div>
-          </div>
-          <div className="footer-actions">
-            <button className="refresh-btn" onClick={() => window.location.reload()}>
-              <i className="bi bi-arrow-clockwise"></i>
-              <span>Refresh</span>
-            </button>
-            <button className="logout-btn" onClick={onLogout}>
-              <i className="bi bi-box-arrow-right"></i>
-              <span>Logout</span>
-            </button>
-          </div>
-        </div>
+      <div className="admin-sidebar-footer">
+        <button
+          className="admin-logout-button"
+          onClick={handleLogout}
+          title={isCollapsed ? 'Logout' : ''}
+        >
+          <span className="admin-logout-icon">🚪</span>
+          {!isCollapsed && <span className="admin-logout-text">Logout</span>}
+        </button>
       </div>
     </div>
   );

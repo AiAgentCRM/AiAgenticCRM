@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { fetchLeads, updateLead, fetchSettings } from "../services/api";
 import LeadDetailsModal from "./LeadDetailsModal";
 import io from "socket.io-client";
@@ -10,14 +10,6 @@ const LeadsTable = ({ tenantId }) => {
   const [refresh, setRefresh] = useState(false);
   const [loading, setLoading] = useState(true);
   const [leadStages, setLeadStages] = useState([]);
-  // UI/UX controls
-  const [search, setSearch] = useState("");
-  const [stageFilter, setStageFilter] = useState("");
-  const [sourceFilter, setSourceFilter] = useState("");
-  const [sortKey, setSortKey] = useState("timestamp");
-  const [sortDir, setSortDir] = useState("desc");
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
 
   useEffect(() => {
     let interval;
@@ -79,96 +71,14 @@ const LeadsTable = ({ tenantId }) => {
     setLoading(false);
   };
 
-  // --- Derived values ---
-  const sources = useMemo(() => Array.from(new Set(leads.map(l => l.source).filter(Boolean))), [leads]);
-  const filteredLeads = useMemo(() => {
-    const lower = search.toLowerCase();
-    return leads.filter(l => {
-      const matchesSearch = !lower || [l.name, l.phone, l.email, l.status, l.detectedStage]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase()
-        .includes(lower);
-      const matchesStage = !stageFilter || l.detectedStage === stageFilter;
-      const matchesSource = !sourceFilter || l.source === sourceFilter;
-      return matchesSearch && matchesStage && matchesSource;
-    });
-  }, [leads, search, stageFilter, sourceFilter]);
-
-  const sortedLeads = useMemo(() => {
-    const copy = [...filteredLeads];
-    copy.sort((a, b) => {
-      let av, bv;
-      switch (sortKey) {
-        case "name":
-          av = (a.name || "").toLowerCase();
-          bv = (b.name || "").toLowerCase();
-          break;
-        case "stage":
-          av = a.detectedStage || ""; bv = b.detectedStage || ""; break;
-        case "source":
-          av = a.source || ""; bv = b.source || ""; break;
-        case "timestamp":
-        default:
-          av = new Date(a.timestamp || 0).getTime();
-          bv = new Date(b.timestamp || 0).getTime();
-      }
-      if (av < bv) return sortDir === "asc" ? -1 : 1;
-      if (av > bv) return sortDir === "asc" ? 1 : -1;
-      return 0;
-    });
-    return copy;
-  }, [filteredLeads, sortKey, sortDir]);
-
-  const totalPages = Math.max(1, Math.ceil(sortedLeads.length / pageSize));
-  const currentPage = Math.min(page, totalPages);
-  const paginatedLeads = useMemo(() => {
-    const start = (currentPage - 1) * pageSize;
-    return sortedLeads.slice(start, start + pageSize);
-  }, [sortedLeads, currentPage, pageSize]);
-
-  if (loading) return (
-    <div className="d-flex align-items-center"><div className="spinner-border me-2" role="status"/><span>Loading leads...</span></div>
-  );
+  if (loading) return <div>Loading leads...</div>;
 
   return (
     <div>
-      <div className="d-flex flex-wrap align-items-end justify-content-between mb-3">
-        <div>
-          <h4 className="m-0">Leads</h4>
-          <small className="text-muted">{sortedLeads.length} result(s)</small>
-        </div>
-        <div className="d-flex flex-wrap gap-2">
-          <input
-            className="form-control"
-            placeholder="Search name, phone, email, stage..."
-            value={search}
-            onChange={e => { setSearch(e.target.value); setPage(1); }}
-            style={{ minWidth: 220 }}
-          />
-          <select className="form-select" value={stageFilter} onChange={e => { setStageFilter(e.target.value); setPage(1); }}>
-            <option value="">All stages</option>
-            {leadStages.map(s => (<option key={s.stage} value={s.stage}>{s.stage}</option>))}
-          </select>
-          <select className="form-select" value={sourceFilter} onChange={e => { setSourceFilter(e.target.value); setPage(1); }}>
-            <option value="">All sources</option>
-            {sources.map(s => (<option key={s} value={s}>{s}</option>))}
-          </select>
-          <select className="form-select" value={sortKey} onChange={e => setSortKey(e.target.value)}>
-            <option value="timestamp">Sort by: Recent</option>
-            <option value="name">Sort by: Name</option>
-            <option value="stage">Sort by: Stage</option>
-            <option value="source">Sort by: Source</option>
-          </select>
-          <select className="form-select" value={sortDir} onChange={e => setSortDir(e.target.value)}>
-            <option value="desc">Desc</option>
-            <option value="asc">Asc</option>
-          </select>
-          <button className="btn btn-outline-secondary" onClick={handleManualRefresh} disabled={loading}>
-            {loading ? "Refreshing..." : "Refresh"}
-          </button>
-        </div>
-      </div>
+      <h2>Leads</h2>
+      <button className="btn btn-primary mb-2" onClick={handleManualRefresh} disabled={loading}>
+        {loading ? "Refreshing..." : "Refresh"}
+      </button>
       <div className="table-responsive">
         <table className="table table-striped">
           <thead>
@@ -179,7 +89,6 @@ const LeadsTable = ({ tenantId }) => {
               <th>Status</th>
               <th>Source</th>
               <th>Stage</th>
-              <th>AI</th>
               <th>Initial Msg Sent</th>
               <th>Initial Msg Time</th>
               <th>Follow-up Status</th>
@@ -188,7 +97,7 @@ const LeadsTable = ({ tenantId }) => {
             </tr>
           </thead>
           <tbody>
-            {paginatedLeads.map((lead) => {
+            {leads.map((lead) => {
               const sentCount = (lead.followupStatuses || []).filter(f => f && f.sent).length;
               const maxFollowups = (lead.followupStatuses || []).length;
               return (
@@ -198,24 +107,6 @@ const LeadsTable = ({ tenantId }) => {
                   <td>{lead.email}</td>
                   <td>{lead.status}</td>
                   <td>{lead.source}</td>
-                  <td>
-                    <div className="form-check form-switch">
-                      <input
-                        className="form-check-input"
-                        type="checkbox"
-                        id={`ai-toggle-${lead._id}`}
-                        checked={lead.aiEnabled !== false}
-                        onChange={async (e) => {
-                          const next = e.target.checked;
-                          await updateLead(tenantId, lead._id, { aiEnabled: next });
-                          setLeads((prev) => prev.map(l => l._id === lead._id ? { ...l, aiEnabled: next } : l));
-                        }}
-                      />
-                      <label className="form-check-label" htmlFor={`ai-toggle-${lead._id}`}>
-                        {lead.aiEnabled === false ? 'Off' : 'On'}
-                      </label>
-                    </div>
-                  </td>
                   <td>
                     <select
                       className="form-select"
@@ -241,24 +132,6 @@ const LeadsTable = ({ tenantId }) => {
             })}
           </tbody>
         </table>
-      </div>
-      {/* Pagination */}
-      <div className="d-flex align-items-center justify-content-between mt-2">
-        <div className="d-flex align-items-center gap-2">
-          <span className="text-muted">Rows per page</span>
-          <select className="form-select" style={{ width: 90 }} value={pageSize} onChange={e => { setPageSize(Number(e.target.value)); setPage(1); }}>
-            {[10, 20, 50, 100].map(n => <option key={n} value={n}>{n}</option>)}
-          </select>
-        </div>
-        <div className="d-flex align-items-center gap-2">
-          <button className="btn btn-sm btn-outline-secondary" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}>
-            Prev
-          </button>
-          <span className="text-muted">Page {currentPage} / {totalPages}</span>
-          <button className="btn btn-sm btn-outline-secondary" onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}>
-            Next
-          </button>
-        </div>
       </div>
       {selectedLead && (
         <LeadDetailsModal

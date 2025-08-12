@@ -85,7 +85,7 @@ async function syncLeads(whatsappReady = false) {
       try {
         await whatsappService.sendMessage(
           ADMIN_TEST_NUMBER,
-          "[TEST] AiAgenticCRM is ready and can send messages."
+          "[TEST] WhatsApp autoresponder is ready and can send messages."
         );
         console.log(
           `Test message sent to admin (${ADMIN_TEST_NUMBER}) successfully.`

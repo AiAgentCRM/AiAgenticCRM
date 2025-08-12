@@ -282,35 +282,4 @@ export async function deduplicateLeads(tenantId) {
   return res.json();
 }
 
-// Company Details APIs
-export async function fetchCompanyDetails() {
-  const res = await fetch(`${API_BASE}/admin/company-details`, {
-    headers: getAuthHeaders(),
-  });
-  return res.json();
-}
-
-export async function updateCompanyDetails(companyData) {
-  const res = await fetch(`${API_BASE}/admin/company-details`, {
-    method: "POST",
-    headers: getAuthHeaders(),
-    body: JSON.stringify(companyData),
-  });
-  return res.json();
-}
-
-export async function uploadCompanyLogo(file) {
-  const formData = new FormData();
-  formData.append('logo', file);
-  
-  const res = await fetch(`${API_BASE}/admin/company-details/logo`, {
-    method: "POST",
-    headers: {
-      Authorization: getAuthHeaders().Authorization,
-    },
-    body: formData,
-  });
-  return res.json();
-}
-
 

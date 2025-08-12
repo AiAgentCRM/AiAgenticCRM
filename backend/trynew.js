@@ -12,7 +12,7 @@ const Knowledgebase = require("./models/Knowledgebase");
 
 // Connect to MongoDB
 mongoose.connect(
-  process.env.MONGODB_URI || "mongodb+srv://aiagenticcrm:TechDB%40%232025@cluster0.d2sgkdm.mongodb.net/aiagentcrm?retryWrites=true&w=majority&appName=Cluster0"
+  process.env.MONGODB_URI || "mongodb://localhost:27017/whatsappautoresponder"
 );
 
 // WhatsApp client

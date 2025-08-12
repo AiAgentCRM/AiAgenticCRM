@@ -1,126 +1,130 @@
-import React from "react";
+import React, { useState, useEffect } from 'react';
+import './Sidebar.css';
 
-const Sidebar = ({
-  activeTab,
-  onSelectTab,
-  onLogout,
-  businessName,
-  ownerName,
-  isOpen = true,
-}) => {
-  const tabs = [
-    { 
-      id: "dashboard", 
-      label: "Dashboard", 
-      icon: "bi-speedometer2",
-      description: "Overview and analytics"
+const Sidebar = ({ activeTab, setActiveTab, onLogout, isMobileOpen }) => {
+  const [isCollapsed, setIsCollapsed] = useState(false);
+
+  const menuItems = [
+    {
+      id: 'dashboard',
+      label: 'Dashboard',
+      icon: '📊'
     },
-    { 
-      id: "leads", 
-      label: "Leads", 
-      icon: "bi-people",
-      description: "Manage your leads"
+    {
+      id: 'leads',
+      label: 'Leads',
+      icon: '👥'
     },
-    { 
-      id: "settings", 
-      label: "Settings", 
-      icon: "bi-gear",
-      description: "Configure preferences"
+    {
+      id: 'whatsapp',
+      label: 'WhatsApp Settings',
+      icon: '💬'
     },
-    { 
-      id: "knowledgebase", 
-      label: "Knowledge Base", 
-      icon: "bi-journal-text",
-      description: "Train your AI"
+    {
+      id: 'sheets',
+      label: 'Google Sheets Configuration',
+      icon: '📋'
     },
-    { 
-      id: "whatsapp", 
-      label: "WhatsApp", 
-      icon: "bi-chat-dots",
-      description: "Connect WhatsApp"
+    {
+      id: 'knowledgebase',
+      label: 'Knowledgebase Setup',
+      icon: '📚'
     },
-    { 
-      id: "sheets", 
-      label: "Google Sheets", 
-      icon: "bi-google",
-      description: "Configure integration"
-    },
+    {
+      id: 'settings',
+      label: 'Global Messaging Settings',
+      icon: '⚙️'
+    }
   ];
 
+  const handleLogout = () => {
+    if (onLogout) {
+      onLogout();
+    }
+  };
+
+  // Handle mobile responsiveness
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth > 768) {
+        setIsCollapsed(false);
+      }
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   return (
-    <div
-      className={`sidebar ${isOpen ? "show" : ""}`}
-    >
+    <div className={`sidebar ${isCollapsed ? 'collapsed' : ''} ${isMobileOpen ? 'mobile-open' : ''}`}>
       {/* Sidebar Header */}
       <div className="sidebar-header">
-        <div className="brand-section">
-          <div className="brand-icon">
-            <i className="bi bi-robot"></i>
-          </div>
-          <div className="brand-info">
-            <h5 className="brand-name">{businessName || "AiAgenticCRM"}</h5>
-            <p className="brand-subtitle">AI-Powered CRM</p>
-          </div>
+        <div className="sidebar-brand">
+          <div className="brand-icon">🤖</div>
+          {!isCollapsed && (
+            <div className="brand-text">
+              <h3>AiAgenticCRM</h3>
+              <small>{localStorage.getItem("businessName")}</small>
+            </div>
+          )}
         </div>
-        <div className="user-section">
-          <div className="user-avatar">
-            <i className="bi bi-person-circle"></i>
-          </div>
+        <button
+          className="sidebar-toggle"
+          onClick={() => setIsCollapsed(!isCollapsed)}
+          aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+        >
+          {isCollapsed ? '→' : '←'}
+        </button>
+      </div>
+
+      {/* User Info */}
+      <div className="sidebar-user">
+        <div className="user-avatar">
+          <span>👤</span>
+        </div>
+        {!isCollapsed && (
           <div className="user-info">
-            <span className="user-name">{ownerName || "User"}</span>
-            <span className="user-role">Business Owner</span>
+            <div className="user-name">{localStorage.getItem("ownerName")}</div>
+            <div className="user-role">Business Owner</div>
           </div>
-        </div>
+        )}
       </div>
 
       {/* Navigation Menu */}
-      <div className="sidebar-nav">
-        <div className="nav-section">
-          <h6 className="nav-title">Main Menu</h6>
-          <div className="nav-items">
-            {tabs.map((tab) => (
+      <nav className="sidebar-nav">
+        <ul className="nav-list">
+          {menuItems.map((item) => (
+            <li key={item.id} className="nav-item">
               <button
-                key={tab.id}
-                className={`nav-item ${activeTab === tab.id ? "active" : ""}`}
-                onClick={() => onSelectTab(tab.id)}
+                className={`nav-link ${activeTab === item.id ? 'active' : ''}`}
+                onClick={() => {
+                  setActiveTab(item.id);
+                }}
+                title={isCollapsed ? item.label : ''}
               >
-                <div className="nav-icon">
-                  <i className={`bi ${tab.icon}`}></i>
-                </div>
-                <div className="nav-content">
-                  <span className="nav-label">{tab.label}</span>
-                  <span className="nav-description">{tab.description}</span>
-                </div>
-                {activeTab === tab.id && (
-                  <div className="nav-indicator">
-                    <i className="bi bi-chevron-right"></i>
-                  </div>
+                <span className="nav-icon">{item.icon}</span>
+                {!isCollapsed && (
+                  <span className="nav-label">{item.label}</span>
                 )}
               </button>
-            ))}
-          </div>
-        </div>
-      </div>
+            </li>
+          ))}
+        </ul>
+      </nav>
 
       {/* Sidebar Footer */}
       <div className="sidebar-footer">
-        <div className="footer-section">
-          <div className="system-status">
-            <div className="status-indicator">
-              <div className="status-dot online"></div>
-              <span className="status-text">System Online</span>
-            </div>
-          </div>
-          <button className="logout-btn" onClick={onLogout}>
-            <i className="bi bi-box-arrow-right"></i>
-            <span>Logout</span>
-          </button>
-        </div>
+        <button
+          className="logout-button"
+          onClick={handleLogout}
+          title={isCollapsed ? 'Logout' : ''}
+        >
+          <span className="logout-icon">🚪</span>
+          {!isCollapsed && <span className="logout-text">Logout</span>}
+        </button>
       </div>
     </div>
   );
 };
 
 export default Sidebar;
-
-
