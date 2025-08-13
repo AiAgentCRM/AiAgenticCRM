@@ -16,6 +16,11 @@ const Settings = require("./models/Settings");
 const Lead = require("./models/Lead");
 const Knowledgebase = require("./models/Knowledgebase");
 const Tenant = require("./models/Tenant");
+const Admin = require("./models/Admin");
+const Notification = require("./models/Notification");
+const WebsiteSettings = require("./models/WebsiteSettings");
+const SystemSettings = require("./models/SystemSettings");
+const EmailSettings = require("./models/EmailSettings");
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcryptjs");
 const tenantClients = new Map();
@@ -221,13 +226,64 @@ function tenantMiddleware(req, res, next) {
   next();
 }
 
+// Admin Authentication Middleware
+function authenticateAdmin(req, res, next) {
+  const authHeader = req.headers["authorization"];
+  const token = authHeader && authHeader.split(" ")[1];
+  
+  if (!token) {
+    return res.status(401).json({ error: "Admin access token required" });
+  }
+  
+  jwt.verify(
+    token,
+    process.env.JWT_SECRET || "your-secret-key",
+    async (err, decoded) => {
+      if (err) {
+        return res.status(403).json({ error: "Invalid admin token" });
+      }
+      
+      try {
+        const admin = await Admin.findById(decoded.adminId);
+        if (!admin || !admin.isActive) {
+          return res.status(403).json({ error: "Admin account not found or inactive" });
+        }
+        
+        req.admin = admin;
+        next();
+      } catch (error) {
+        return res.status(500).json({ error: "Authentication error" });
+      }
+    }
+  );
+}
+
+// Admin Permission Middleware
+function requirePermission(permission) {
+  return (req, res, next) => {
+    if (!req.admin) {
+      return res.status(401).json({ error: "Admin authentication required" });
+    }
+    
+    if (req.admin.role === 'super_admin') {
+      return next(); // Super admin has all permissions
+    }
+    
+    if (!req.admin.permissions.includes(permission)) {
+      return res.status(403).json({ error: "Insufficient permissions" });
+    }
+    
+    next();
+  };
+}
+
 // Subscription Plan Management (Super Admin)
-app.get("/api/admin/plans", async (req, res) => {
+app.get("/api/admin/plans", authenticateAdmin, requirePermission('manage_plans'), async (req, res) => {
   const plans = await SubscriptionPlan.find({ isActive: true });
   res.json(plans);
 });
 
-app.post("/api/admin/plans", async (req, res) => {
+app.post("/api/admin/plans", authenticateAdmin, requirePermission('manage_plans'), async (req, res) => {
   try {
     const {
       planId,
@@ -387,7 +443,7 @@ app.post("/api/admin/register", async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
-// Login for business owner
+// Login for business owner (tenant login)
 app.post("/api/admin/login", async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -415,26 +471,468 @@ app.post("/api/admin/login", async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
+
+// Admin Authentication Routes
+app.post("/api/admin/auth/login", async (req, res) => {
+  try {
+    const { username, password } = req.body;
+    
+    // Input validation
+    if (!username || !password) {
+      return res.status(400).json({ error: "Username and password are required" });
+    }
+    
+    // Find admin by username or email
+    const admin = await Admin.findOne({
+      $or: [{ username }, { email: username }]
+    });
+    
+    if (!admin) {
+      return res.status(401).json({ error: "Invalid credentials" });
+    }
+    
+    // Check if account is locked
+    if (admin.isLocked()) {
+      return res.status(423).json({ 
+        error: "Account is temporarily locked due to multiple failed login attempts. Please try again later." 
+      });
+    }
+    
+    // Check if account is active
+    if (!admin.isActive) {
+      return res.status(403).json({ error: "Account is deactivated" });
+    }
+    
+    // Verify password
+    const isValidPassword = await admin.comparePassword(password);
+    if (!isValidPassword) {
+      // Increment login attempts
+      await admin.incLoginAttempts();
+      return res.status(401).json({ error: "Invalid credentials" });
+    }
+    
+    // Reset login attempts on successful login
+    await admin.resetLoginAttempts();
+    
+    // Generate JWT token
+    const token = jwt.sign(
+      { 
+        adminId: admin._id, 
+        username: admin.username, 
+        email: admin.email,
+        role: admin.role,
+        permissions: admin.permissions
+      },
+      process.env.JWT_SECRET || "your-secret-key",
+      { expiresIn: "8h" }
+    );
+    
+    res.json({
+      token,
+      admin: {
+        id: admin._id,
+        username: admin.username,
+        email: admin.email,
+        role: admin.role,
+        permissions: admin.permissions,
+        lastLogin: admin.lastLogin
+      }
+    });
+    
+  } catch (error) {
+    console.error("Admin login error:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// Admin logout (optional - for server-side session management)
+app.post("/api/admin/auth/logout", authenticateAdmin, async (req, res) => {
+  try {
+    // In a stateless JWT system, logout is typically handled client-side
+    // But we can log the logout event for audit purposes
+    console.log(`Admin ${req.admin.username} logged out`);
+    res.json({ message: "Logged out successfully" });
+  } catch (error) {
+    res.status(500).json({ error: "Logout error" });
+  }
+});
+
+// Get current admin profile
+app.get("/api/admin/auth/profile", authenticateAdmin, async (req, res) => {
+  try {
+    res.json({
+      admin: {
+        id: req.admin._id,
+        username: req.admin.username,
+        email: req.admin.email,
+        role: req.admin.role,
+        permissions: req.admin.permissions,
+        lastLogin: req.admin.lastLogin,
+        createdAt: req.admin.createdAt
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ error: "Failed to fetch profile" });
+  }
+});
+
+// Create initial admin account (for first-time setup)
+app.post("/api/admin/auth/setup", async (req, res) => {
+  try {
+    // Check if any admin already exists
+    const adminCount = await Admin.countDocuments();
+    if (adminCount > 0) {
+      return res.status(403).json({ error: "Admin setup already completed" });
+    }
+    
+    const { username, email, password } = req.body;
+    
+    // Validation
+    if (!username || !email || !password) {
+      return res.status(400).json({ error: "All fields are required" });
+    }
+    
+    if (password.length < 8) {
+      return res.status(400).json({ error: "Password must be at least 8 characters long" });
+    }
+    
+    // Create super admin
+    const admin = new Admin({
+      username,
+      email,
+      password,
+      role: 'super_admin',
+      permissions: [
+        'manage_tenants',
+        'manage_plans', 
+        'view_analytics',
+        'manage_payments',
+        'system_settings',
+        'user_management'
+      ]
+    });
+    
+    await admin.save();
+    
+    console.log(`Initial super admin created: ${username}`);
+    
+    res.status(201).json({ 
+      message: "Super admin account created successfully",
+      admin: {
+        username: admin.username,
+        email: admin.email,
+        role: admin.role
+      }
+    });
+    
+  } catch (error) {
+    console.error("Admin setup error:", error);
+    res.status(500).json({ error: "Failed to create admin account" });
+  }
+});
+
+// ===== NOTIFICATION MANAGEMENT ROUTES =====
+
+// Get all notifications
+app.get("/api/admin/notifications", authenticateAdmin, requirePermission('system_settings'), async (req, res) => {
+  try {
+    const notifications = await Notification.find()
+      .populate('createdBy', 'username email')
+      .sort({ createdAt: -1 });
+    res.json(notifications);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Create new notification
+app.post("/api/admin/notifications", authenticateAdmin, requirePermission('system_settings'), async (req, res) => {
+  try {
+    const notificationData = {
+      ...req.body,
+      createdBy: req.admin._id
+    };
+    
+    const notification = new Notification(notificationData);
+    await notification.save();
+    
+    const populatedNotification = await Notification.findById(notification._id)
+      .populate('createdBy', 'username email');
+    
+    res.status(201).json(populatedNotification);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Update notification
+app.put("/api/admin/notifications/:id", authenticateAdmin, requirePermission('system_settings'), async (req, res) => {
+  try {
+    const notification = await Notification.findByIdAndUpdate(
+      req.params.id,
+      { ...req.body, updatedAt: new Date() },
+      { new: true }
+    ).populate('createdBy', 'username email');
+    
+    if (!notification) {
+      return res.status(404).json({ error: "Notification not found" });
+    }
+    
+    res.json(notification);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Delete notification
+app.delete("/api/admin/notifications/:id", authenticateAdmin, requirePermission('system_settings'), async (req, res) => {
+  try {
+    const notification = await Notification.findByIdAndDelete(req.params.id);
+    if (!notification) {
+      return res.status(404).json({ error: "Notification not found" });
+    }
+    res.json({ message: "Notification deleted successfully" });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ===== WEBSITE SETTINGS ROUTES =====
+
+// Get website settings
+app.get("/api/admin/website-settings", authenticateAdmin, requirePermission('system_settings'), async (req, res) => {
+  try {
+    let settings = await WebsiteSettings.findOne();
+    if (!settings) {
+      settings = new WebsiteSettings();
+      await settings.save();
+    }
+    res.json(settings);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Update website settings
+app.put("/api/admin/website-settings", authenticateAdmin, requirePermission('system_settings'), async (req, res) => {
+  try {
+    let settings = await WebsiteSettings.findOne();
+    if (!settings) {
+      settings = new WebsiteSettings();
+    }
+    
+    Object.assign(settings, req.body, {
+      updatedBy: req.admin._id,
+      updatedAt: new Date()
+    });
+    
+    await settings.save();
+    res.json(settings);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ===== SYSTEM SETTINGS ROUTES =====
+
+// Get system settings
+app.get("/api/admin/system-settings", authenticateAdmin, requirePermission('system_settings'), async (req, res) => {
+  try {
+    let settings = await SystemSettings.findOne();
+    if (!settings) {
+      settings = new SystemSettings();
+      await settings.save();
+    }
+    res.json(settings);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Update system settings
+app.put("/api/admin/system-settings", authenticateAdmin, requirePermission('system_settings'), async (req, res) => {
+  try {
+    let settings = await SystemSettings.findOne();
+    if (!settings) {
+      settings = new SystemSettings();
+    }
+    
+    Object.assign(settings, req.body, {
+      updatedBy: req.admin._id,
+      updatedAt: new Date()
+    });
+    
+    await settings.save();
+    res.json(settings);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ===== EMAIL SETTINGS ROUTES =====
+
+// Test route to check if backend is working
+app.get("/api/test", (req, res) => {
+  res.json({ message: "Backend is working!" });
+});
+
+// Test route to check if socket server is working
+app.get("/api/socket-test", (req, res) => {
+  res.json({ 
+    message: "Socket server is working!", 
+    socketPort: SOCKET_PORT,
+    socketUrl: `http://localhost:${SOCKET_PORT}`
+  });
+});
+
+// Get email settings (mask password)
+app.get("/api/admin/email-settings", authenticateAdmin, requirePermission('system_settings'), async (req, res) => {
+  try {
+    console.log('Email settings request received');
+    // Select password to compute hasPassword, then remove it
+    let settings = await EmailSettings.findOne().select('+smtp.password');
+    console.log('Settings found:', !!settings);
+    if (!settings) {
+      // Return an unsaved document with defaults (do not save to avoid validation before user provides values)
+      settings = new EmailSettings();
+      console.log('Created new settings object');
+    }
+    const obj = settings.toObject({ getters: true, virtuals: false });
+    if (!obj.smtp) obj.smtp = {};
+    obj.smtp.hasPassword = Boolean(obj.smtp && obj.smtp.password);
+    delete obj.smtp.password;
+    console.log('Sending response:', Object.keys(obj));
+    return res.json(obj);
+  } catch (error) {
+    console.error('Email settings error:', error);
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+// Update email settings (preserve password if not provided)
+app.put("/api/admin/email-settings", authenticateAdmin, requirePermission('system_settings'), async (req, res) => {
+  try {
+    let settings = await EmailSettings.findOne().select('+smtp.password');
+    if (!settings) {
+      settings = new EmailSettings();
+    }
+
+    const incoming = req.body || {};
+    // Merge shallowly while preserving password unless explicitly provided and non-empty
+    if (incoming.smtp) {
+      const { password, ...restSmtp } = incoming.smtp;
+      settings.smtp = settings.smtp || {};
+      Object.assign(settings.smtp, restSmtp);
+      if (typeof password === 'string' && password.length > 0) {
+        settings.smtp.password = password;
+      }
+    }
+    if (incoming.templates) {
+      settings.templates = { ...(settings.templates || {}), ...incoming.templates };
+    }
+    if (incoming.preferences) {
+      settings.preferences = { ...(settings.preferences || {}), ...incoming.preferences };
+    }
+    settings.updatedBy = req.admin._id;
+    settings.updatedAt = new Date();
+
+    await settings.save();
+
+    const obj = settings.toObject();
+    if (obj.smtp) delete obj.smtp.password;
+    return res.json(obj);
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+// Test SMTP connection
+app.post("/api/admin/email-settings/test", authenticateAdmin, requirePermission('system_settings'), async (req, res) => {
+  try {
+    const { smtp } = req.body || {};
+    if (!smtp || !smtp.host || !smtp.port || !smtp.username || !smtp.password) {
+      return res.status(400).json({ error: 'Missing required SMTP fields' });
+    }
+
+    const nodemailer = require('nodemailer');
+    const useSecure = Boolean(smtp.secure) || String(smtp.encryption).toLowerCase() === 'ssl';
+    const transporter = nodemailer.createTransport({
+      host: smtp.host,
+      port: smtp.port,
+      secure: useSecure,
+      auth: { user: smtp.username, pass: smtp.password },
+      tls: String(smtp.encryption).toLowerCase() === 'tls' ? { ciphers: 'SSLv3' } : undefined
+    });
+
+    await transporter.verify();
+    return res.json({ message: 'SMTP test successful' });
+  } catch (error) {
+    return res.status(500).json({ error: error.message || 'SMTP test failed' });
+  }
+});
+
+// ===== PUBLIC ROUTES FOR FRONTEND =====
+
+// Get public website settings (for frontend)
+app.get("/api/website-settings", async (req, res) => {
+  try {
+    let settings = await WebsiteSettings.findOne();
+    if (!settings) {
+      settings = new WebsiteSettings();
+      await settings.save();
+    }
+    res.json(settings);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get active notifications for tenants
+app.get("/api/notifications", async (req, res) => {
+  try {
+    const now = new Date();
+    const notifications = await Notification.find({
+      isActive: true,
+      $or: [
+        { isGlobal: true },
+        { targetAudience: 'all' },
+        { targetAudience: 'tenants' }
+      ],
+      $or: [
+        { endDate: { $exists: false } },
+        { endDate: { $gt: now } }
+      ],
+      $or: [
+        { startDate: { $exists: false } },
+        { startDate: { $lte: now } }
+      ]
+    }).sort({ priority: -1, createdAt: -1 });
+    
+    res.json(notifications);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
 // Super admin: list, approve, block tenants
-app.get("/api/admin/tenants", async (req, res) => {
+app.get("/api/admin/tenants", authenticateAdmin, requirePermission('manage_tenants'), async (req, res) => {
   const tenants = await Tenant.find();
   res.json(tenants);
 });
-app.post("/api/admin/tenants/:tenantId/approve", async (req, res) => {
+app.post("/api/admin/tenants/:tenantId/approve", authenticateAdmin, requirePermission('manage_tenants'), async (req, res) => {
   const tenant = await Tenant.findOne({ tenantId: req.params.tenantId });
   if (!tenant) return res.status(404).json({ error: "Tenant not found" });
   tenant.isApproved = true;
   await tenant.save();
   res.json({ message: "Tenant approved" });
 });
-app.post("/api/admin/tenants/:tenantId/block", async (req, res) => {
+app.post("/api/admin/tenants/:tenantId/block", authenticateAdmin, requirePermission('manage_tenants'), async (req, res) => {
   const tenant = await Tenant.findOne({ tenantId: req.params.tenantId });
   if (!tenant) return res.status(404).json({ error: "Tenant not found" });
   tenant.isActive = false;
   await tenant.save();
   res.json({ message: "Tenant blocked" });
 });
-app.post("/api/admin/tenants/:tenantId/unblock", async (req, res) => {
+app.post("/api/admin/tenants/:tenantId/unblock", authenticateAdmin, requirePermission('manage_tenants'), async (req, res) => {
   const tenant = await Tenant.findOne({ tenantId: req.params.tenantId });
   if (!tenant) return res.status(404).json({ error: "Tenant not found" });
   tenant.isActive = true;
@@ -442,7 +940,7 @@ app.post("/api/admin/tenants/:tenantId/unblock", async (req, res) => {
   res.json({ message: "Tenant unblocked" });
 });
 // Robust tenant deletion: destroy WhatsApp client and remove session folder
-app.delete("/api/admin/tenants/:tenantId", async (req, res) => {
+app.delete("/api/admin/tenants/:tenantId", authenticateAdmin, requirePermission('manage_tenants'), async (req, res) => {
   try {
     const tenantId = req.params.tenantId;
     // Destroy WhatsApp client if exists
@@ -644,7 +1142,7 @@ app.get(
             await tenant.save();
           }
           // Emit WhatsApp ready event to frontend via socket.io
-          io.to(tenantId).emit("whatsapp-ready", { tenantId });
+          socketIo.to(tenantId).emit("whatsapp-ready", { tenantId });
         });
         client.on("disconnected", async () => {
           const tenant = await Tenant.findOne({ tenantId });
@@ -680,7 +1178,7 @@ app.get(
           require("qrcode").toDataURL(qr, (err, dataUrl) => {
             if (!err) {
               // Emit QR code to frontend via socket.io
-              io.to(tenantId).emit("whatsapp-qr", { tenantId, qr: dataUrl });
+              socketIo.to(tenantId).emit("whatsapp-qr", { tenantId, qr: dataUrl });
               res.json({ status: "qr", qr: dataUrl, message: "Scan this QR code with WhatsApp" });
             } else {
               res.status(500).json({ error: "Failed to generate QR code" });
@@ -750,13 +1248,13 @@ app.post(
 
 
   // List all plans
-  app.get("/api/admin/plans", async (req, res) => {
+  app.get("/api/admin/plans", authenticateAdmin, requirePermission('manage_plans'), async (req, res) => {
     const plans = await SubscriptionPlan.find({});
     res.json(plans);
   });
 
   // Create a new plan
-  app.post("/api/admin/plans", async (req, res) => {
+  app.post("/api/admin/plans", authenticateAdmin, requirePermission('manage_plans'), async (req, res) => {
     try {
       const { planId, planName, price, initialMessageLimit, conversationLimit, followupLimit, features } = req.body;
       let plan = await SubscriptionPlan.findOne({ planId });
@@ -770,7 +1268,7 @@ app.post(
   });
 
   // Edit a plan
-  app.put("/api/admin/plans/:planId", async (req, res) => {
+  app.put("/api/admin/plans/:planId", authenticateAdmin, requirePermission('manage_plans'), async (req, res) => {
     try {
       const { planName, price, initialMessageLimit, conversationLimit, followupLimit, features } = req.body;
       const plan = await SubscriptionPlan.findOne({ planId: req.params.planId });
@@ -790,7 +1288,7 @@ app.post(
   });
 
   // Delete a plan
-  app.delete("/api/admin/plans/:planId", async (req, res) => {
+  app.delete("/api/admin/plans/:planId", authenticateAdmin, requirePermission('manage_plans'), async (req, res) => {
     try {
       await SubscriptionPlan.deleteOne({ planId: req.params.planId });
       res.json({ message: "Plan deleted successfully" });
@@ -800,13 +1298,13 @@ app.post(
   });
 
   // List all tenants
-  app.get("/api/admin/tenants", async (req, res) => {
+  app.get("/api/admin/tenants", authenticateAdmin, requirePermission('manage_tenants'), async (req, res) => {
     const tenants = await Tenant.find({});
     res.json(tenants);
   });
 
   // Get stats for a tenant
-  app.get("/api/admin/tenants/:tenantId/stats", async (req, res) => {
+  app.get("/api/admin/tenants/:tenantId/stats", authenticateAdmin, requirePermission('view_analytics'), async (req, res) => {
     try {
       const tenant = await Tenant.findOne({ tenantId: req.params.tenantId });
       if (!tenant) return res.status(404).json({ error: "Tenant not found" });
@@ -823,7 +1321,7 @@ app.post(
     }
   });
 // Admin approves/rejects plan change
-app.post("/api/admin/tenants/:tenantId/plan-request", async (req, res) => {
+app.post("/api/admin/tenants/:tenantId/plan-request", authenticateAdmin, requirePermission('manage_plans'), async (req, res) => {
   try {
     const { approve } = req.body;
     const tenant = await Tenant.findOne({ tenantId: req.params.tenantId });
@@ -895,7 +1393,7 @@ app.get(
   }
 );
 // Admin fetches all pending plan change requests
-app.get("/api/admin/plan-requests", async (req, res) => {
+app.get("/api/admin/plan-requests", authenticateAdmin, requirePermission('manage_plans'), async (req, res) => {
   try {
     const tenants = await Tenant.find({
       "pendingPlanRequest.status": "pending",
@@ -916,7 +1414,7 @@ app.get("/api/admin/plan-requests", async (req, res) => {
   }
 });
 // Admin resets tenant usage
-app.post("/api/admin/tenants/:tenantId/reset-usage", async (req, res) => {
+app.post("/api/admin/tenants/:tenantId/reset-usage", authenticateAdmin, requirePermission('manage_tenants'), async (req, res) => {
   try {
     const tenant = await Tenant.findOne({ tenantId: req.params.tenantId });
     if (!tenant) return res.status(404).json({ error: "Tenant not found" });
@@ -1527,7 +2025,7 @@ app.get("/api/:tenantId/whatsapp/status", authenticateToken, tenantMiddleware, a
             t.whatsappReady = true;
             await t.save();
             // Emit WhatsApp ready event to frontend via socket.io
-            io.to(tenant.tenantId).emit("whatsapp-ready", { tenantId: tenant.tenantId });
+            socketIo.to(tenant.tenantId).emit("whatsapp-ready", { tenantId: tenant.tenantId });
           } else {
             console.log(`[READY EVENT] Tenant ${tenant.tenantId} not found (may have been deleted), skipping whatsappReady update.`);
           }
@@ -1679,7 +2177,7 @@ app.get("/api/:tenantId/whatsapp/status", authenticateToken, tenantMiddleware, a
                 await lead.save();
                 // Emit real-time update to frontend for this tenant
                 if (io && tenantId) {
-                  io.to(tenantId).emit('lead-updated', lead);
+                  socketIo.to(tenantId).emit('lead-updated', lead);
                 }
               }
             } catch (err) {
@@ -1722,7 +2220,7 @@ app.get("/api/:tenantId/whatsapp/status", authenticateToken, tenantMiddleware, a
 })();
 
 // Admin endpoint to deduplicate leads for a tenant
-app.post("/api/admin/deduplicate-leads/:tenantId", async (req, res) => {
+app.post("/api/admin/deduplicate-leads/:tenantId", authenticateAdmin, requirePermission('manage_tenants'), async (req, res) => {
   try {
     const tenantId = req.params.tenantId;
     const leads = await Lead.find({ tenantId });
@@ -1762,11 +2260,47 @@ app.post("/api/admin/deduplicate-leads/:tenantId", async (req, res) => {
 });
 
 const PORT = process.env.PORT || 5000;
+const SOCKET_PORT = process.env.SOCKET_PORT || 5050;
 const HOST = process.env.HOST || '0.0.0.0';
 
+// Create a separate HTTP server for Socket.IO
+const socketServer = http.createServer();
+const socketIo = new Server(socketServer, {
+  cors: {
+    origin: "*",
+    methods: ["GET", "POST"],
+  },
+});
+
+// Socket.IO connection logic for the separate server
+socketIo.on("connection", (socket) => {
+  console.log("Socket.IO client connected");
+  // Join tenant room if tenantId is provided
+  socket.on("join-tenant", (tenantId) => {
+    if (tenantId) {
+      socket.join(tenantId);
+      console.log(`Client joined tenant room: ${tenantId}`);
+    }
+  });
+});
+
+// Set the socketIo instance in WhatsApp service
+const whatsappService = require('./services/whatsapp');
+whatsappService.setSocketIO(socketIo);
+
+// Set the socketIo instance in Google Sheets service
+const googleSheetsService = require('./services/googleSheets/syncLeads');
+googleSheetsService.setSocketIO(socketIo);
+
+// Start the main API server
 server.listen(PORT, HOST, () => {
   console.log(`🚀 Multi-tenant WhatsApp Autoresponder running on ${HOST}:${PORT}`);
   console.log(`🌐 Production URL: https://api.aiagenticcrm.com`);
+});
+
+// Start the Socket.IO server
+socketServer.listen(SOCKET_PORT, HOST, () => {
+  console.log(`🔌 Socket.IO server running on ${HOST}:${SOCKET_PORT}`);
 });
 
 // --- Global error handlers to prevent server crash ---

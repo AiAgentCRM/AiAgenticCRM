@@ -181,7 +181,7 @@ async function sendInitialMessageToLead(lead, initialMessage) {
         sender: "system",
         message: initialMessage.replace("{name}", lead.name || ""),
       });
-      if (io) io.emit("lead-message-sent", { lead, message: msgDoc });
+      if (io) io.to(lead.tenantId).emit("lead-message-sent", { lead, message: msgDoc });
       sent = true;
     } catch (err) {
       attempts++;
@@ -189,7 +189,7 @@ async function sendInitialMessageToLead(lead, initialMessage) {
         `Failed to send WhatsApp message to ${waId} (attempt ${attempts}):`,
         err.message
       );
-      if (attempts >= 3 && io) io.emit("lead-message-failed", { lead });
+      if (attempts >= 3 && io) io.to(lead.tenantId).emit("lead-message-failed", { lead });
       if (attempts < 3) await sleep(2000);
     }
   }

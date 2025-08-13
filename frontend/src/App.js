@@ -7,8 +7,10 @@ import {
 } from "react-router-dom";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
+import AdminLogin from "./pages/AdminLogin";
 import SuperAdmin from "./pages/SuperAdmin";
 import TenantDashboard from "./pages/TenantDashboard";
+import AdminRoute from "./components/AdminRoute";
 import "bootstrap/dist/css/bootstrap.min.css";
 
 function App() {
@@ -18,9 +20,14 @@ function App() {
         {/* Public routes */}
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
+        <Route path="/admin/login" element={<AdminLogin />} />
 
-        {/* Super admin route */}
-        <Route path="/admin" element={<SuperAdmin />} />
+        {/* Protected admin routes */}
+        <Route path="/admin" element={
+          <AdminRoute>
+            <SuperAdmin />
+          </AdminRoute>
+        } />
 
         {/* Tenant dashboard routes */}
         <Route path="/:tenantId/dashboard" element={<TenantDashboard />} />

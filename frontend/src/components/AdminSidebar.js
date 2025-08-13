@@ -24,6 +24,30 @@ const AdminSidebar = ({ activeTab, setActiveTab, onLogout, isMobileOpen }) => {
       description: 'Review plan change requests'
     },
     {
+      id: 'notifications',
+      label: 'Notifications',
+      icon: '🔔',
+      description: 'Manage system notifications'
+    },
+    {
+      id: 'websiteSettings',
+      label: 'Website Settings',
+      icon: '🌐',
+      description: 'Manage frontend site'
+    },
+    {
+      id: 'systemSettings',
+      label: 'System Settings',
+      icon: '⚙️',
+      description: 'Configure system options'
+    },
+    {
+      id: 'emailSettings',
+      label: 'Email Settings',
+      icon: '📧',
+      description: 'Configure email system'
+    },
+    {
       id: 'paymentGateways',
       label: 'Payment Gateways',
       icon: '💳',

@@ -1,24 +1,39 @@
 const { OpenAI } = require("openai");
 const Knowledgebase = require("../../models/Knowledgebase");
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+// Only create OpenAI instance if API key is provided
+let openai = null;
+if (process.env.OPENAI_API_KEY) {
+  openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+}
 
 async function generateReply(userMessage, chatContext = []) {
-  // Fetch latest knowledgebase
-  const kb = await Knowledgebase.findOne().sort({ updatedAt: -1 });
-  const systemPrompt = kb
-    ? kb.content
-    : "You are a helpful WhatsApp CRM assistant.";
-  const completion = await openai.chat.completions.create({
-    model: "gpt-4",
-    messages: [
-      { role: "system", content: systemPrompt },
-      ...chatContext.map((msg) => ({ role: "user", content: msg })),
-      { role: "user", content: userMessage },
-    ],
-    max_tokens: 100,
-    temperature: 0.7,
-  });
-  return completion.choices[0].message.content.trim();
+  // Check if OpenAI is configured
+  if (!openai) {
+    return "AI service is not configured. Please set OPENAI_API_KEY environment variable.";
+  }
+  
+  try {
+    // Fetch latest knowledgebase
+    const kb = await Knowledgebase.findOne().sort({ updatedAt: -1 });
+    const systemPrompt = kb
+      ? kb.content
+      : "You are a helpful WhatsApp CRM assistant.";
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4",
+      messages: [
+        { role: "system", content: systemPrompt },
+        ...chatContext.map((msg) => ({ role: "user", content: msg })),
+        { role: "user", content: userMessage },
+      ],
+      max_tokens: 100,
+      temperature: 0.7,
+    });
+    return completion.choices[0].message.content.trim();
+  } catch (error) {
+    console.error("OpenAI API error:", error);
+    return "Sorry, I'm having trouble processing your request right now.";
+  }
 }
 
 async function scoreLead(leadProfile) {

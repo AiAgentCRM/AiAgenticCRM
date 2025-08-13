@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { fetchWhatsAppQR } from "../services/api";
 import io from "socket.io-client";
 
-const SOCKET_URL = process.env.REACT_APP_SOCKET_URL || "http://localhost:5000";
+const SOCKET_URL = process.env.REACT_APP_SOCKET_URL || "http://localhost:5050";
 
 const WhatsAppConnect = ({ tenantId }) => {
   const [qr, setQr] = useState(null);

@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { fetchLeads, updateLead, fetchSettings } from "../services/api";
 import LeadDetailsModal from "./LeadDetailsModal";
 import io from "socket.io-client";
-const SOCKET_URL = process.env.REACT_APP_SOCKET_URL || "http://localhost:5000";
+const SOCKET_URL = process.env.REACT_APP_SOCKET_URL || "http://localhost:5050";
 
 const LeadsTable = ({ tenantId }) => {
   const [leads, setLeads] = useState([]);

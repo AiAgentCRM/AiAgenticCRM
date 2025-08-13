@@ -1,7 +1,8 @@
 // src/services/api.js
 // Multi-tenant API service for backend integration
 
-const API_BASE = process.env.REACT_APP_API_BASE || "https://api.aiagenticcrm.com/api";
+const API_BASE = process.env.REACT_APP_API_BASE || "http://localhost:5000/api";
+const SOCKET_URL = process.env.REACT_APP_SOCKET_URL || "http://localhost:5050";
 
 // Helper function to get auth headers
 function getAuthHeaders() {
@@ -9,6 +10,15 @@ function getAuthHeaders() {
   return {
     "Content-Type": "application/json",
     ...(token && { Authorization: `Bearer ${token}` }),
+  };
+}
+
+// Helper function to get admin auth headers
+function getAdminAuthHeaders() {
+  const adminToken = localStorage.getItem("adminToken");
+  return {
+    "Content-Type": "application/json",
+    ...(adminToken && { Authorization: `Bearer ${adminToken}` }),
   };
 }
 
@@ -36,10 +46,159 @@ export async function login(credentials) {
   return res.json();
 }
 
+// Admin Authentication APIs
+export async function adminLogin(credentials) {
+  const res = await fetch(`${API_BASE}/admin/auth/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(credentials),
+  });
+  return res.json();
+}
+
+export async function adminLogout() {
+  const res = await fetch(`${API_BASE}/admin/auth/logout`, {
+    method: "POST",
+    headers: getAdminAuthHeaders(),
+  });
+  return res.json();
+}
+
+export async function getAdminProfile() {
+  const res = await fetch(`${API_BASE}/admin/auth/profile`, {
+    headers: getAdminAuthHeaders(),
+  });
+  return res.json();
+}
+
+export async function setupAdmin(adminData) {
+  const res = await fetch(`${API_BASE}/admin/auth/setup`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(adminData),
+  });
+  return res.json();
+}
+
+// ===== NOTIFICATION MANAGEMENT APIs =====
+
+export async function fetchNotifications() {
+  const res = await fetch(`${API_BASE}/admin/notifications`, {
+    headers: getAdminAuthHeaders(),
+  });
+  return res.json();
+}
+
+export async function createNotification(notificationData) {
+  const res = await fetch(`${API_BASE}/admin/notifications`, {
+    method: "POST",
+    headers: getAdminAuthHeaders(),
+    body: JSON.stringify(notificationData),
+  });
+  return res.json();
+}
+
+export async function updateNotification(id, notificationData) {
+  const res = await fetch(`${API_BASE}/admin/notifications/${id}`, {
+    method: "PUT",
+    headers: getAdminAuthHeaders(),
+    body: JSON.stringify(notificationData),
+  });
+  return res.json();
+}
+
+export async function deleteNotification(id) {
+  const res = await fetch(`${API_BASE}/admin/notifications/${id}`, {
+    method: "DELETE",
+    headers: getAdminAuthHeaders(),
+  });
+  return res.json();
+}
+
+// ===== WEBSITE SETTINGS APIs =====
+
+export async function fetchWebsiteSettings() {
+  const res = await fetch(`${API_BASE}/admin/website-settings`, {
+    headers: getAdminAuthHeaders(),
+  });
+  return res.json();
+}
+
+export async function updateWebsiteSettings(settingsData) {
+  const res = await fetch(`${API_BASE}/admin/website-settings`, {
+    method: "PUT",
+    headers: getAdminAuthHeaders(),
+    body: JSON.stringify(settingsData),
+  });
+  return res.json();
+}
+
+// ===== SYSTEM SETTINGS APIs =====
+
+export async function fetchSystemSettings() {
+  const res = await fetch(`${API_BASE}/admin/system-settings`, {
+    headers: getAdminAuthHeaders(),
+  });
+  return res.json();
+}
+
+export async function updateSystemSettings(settingsData) {
+  const res = await fetch(`${API_BASE}/admin/system-settings`, {
+    method: "PUT",
+    headers: getAdminAuthHeaders(),
+    body: JSON.stringify(settingsData),
+  });
+  return res.json();
+}
+
+// ===== EMAIL SETTINGS APIs =====
+
+export async function fetchEmailSettings() {
+  console.log('Fetching email settings from:', `${API_BASE}/admin/email-settings`);
+  console.log('Headers:', getAdminAuthHeaders());
+  const res = await fetch(`${API_BASE}/admin/email-settings`, {
+    headers: getAdminAuthHeaders(),
+  });
+  console.log('Response status:', res.status);
+  const data = await res.json();
+  console.log('Response data:', data);
+  return data;
+}
+
+export async function updateEmailSettings(settingsData) {
+  const res = await fetch(`${API_BASE}/admin/email-settings`, {
+    method: "PUT",
+    headers: getAdminAuthHeaders(),
+    body: JSON.stringify(settingsData),
+  });
+  return res.json();
+}
+
+export async function testSMTPConnection(smtpData) {
+  const res = await fetch(`${API_BASE}/admin/email-settings/test`, {
+    method: "POST",
+    headers: getAdminAuthHeaders(),
+    body: JSON.stringify({ smtp: smtpData }),
+  });
+  return res.json();
+}
+
+// ===== PUBLIC APIs =====
+
+export async function fetchPublicWebsiteSettings() {
+  const res = await fetch(`${API_BASE}/website-settings`);
+  return res.json();
+}
+
+export async function fetchPublicNotifications() {
+  const res = await fetch(`${API_BASE}/notifications`);
+  return res.json();
+}
+
 // Super Admin APIs
 export async function fetchTenants() {
   const res = await fetch(`${API_BASE}/admin/tenants`, {
-    headers: getAuthHeaders(),
+    headers: getAdminAuthHeaders(),
   });
   return res.json();
 }
@@ -47,7 +206,7 @@ export async function fetchTenants() {
 export async function approveTenant(tenantId) {
   const res = await fetch(`${API_BASE}/admin/tenants/${tenantId}/approve`, {
     method: "POST",
-    headers: getAuthHeaders(),
+    headers: getAdminAuthHeaders(),
   });
   return res.json();
 }
@@ -55,7 +214,7 @@ export async function approveTenant(tenantId) {
 export async function blockTenant(tenantId) {
   const res = await fetch(`${API_BASE}/admin/tenants/${tenantId}/block`, {
     method: "POST",
-    headers: getAuthHeaders(),
+    headers: getAdminAuthHeaders(),
   });
   return res.json();
 }
@@ -63,14 +222,14 @@ export async function blockTenant(tenantId) {
 export async function unblockTenant(tenantId) {
   const res = await fetch(`${API_BASE}/admin/tenants/${tenantId}/unblock`, {
     method: "POST",
-    headers: getAuthHeaders(),
+    headers: getAdminAuthHeaders(),
   });
   return res.json();
 }
 
 export async function fetchPlans() {
   const res = await fetch(`${API_BASE}/admin/plans`, {
-    headers: getAuthHeaders(),
+    headers: getAdminAuthHeaders(),
   });
   return res.json();
 }
@@ -78,7 +237,7 @@ export async function fetchPlans() {
 export async function createOrUpdatePlan(planData) {
   const res = await fetch(`${API_BASE}/admin/plans`, {
     method: "POST",
-    headers: getAuthHeaders(),
+    headers: getAdminAuthHeaders(),
     body: JSON.stringify(planData),
   });
   return res.json();
@@ -86,7 +245,7 @@ export async function createOrUpdatePlan(planData) {
 
 export async function fetchPlanRequests() {
   const res = await fetch(`${API_BASE}/admin/plan-requests`, {
-    headers: getAuthHeaders(),
+    headers: getAdminAuthHeaders(),
   });
   return res.json();
 }
@@ -96,7 +255,7 @@ export async function approvePlanRequest(tenantId, approve) {
     `${API_BASE}/admin/tenants/${tenantId}/plan-request`,
     {
       method: "POST",
-      headers: getAuthHeaders(),
+      headers: getAdminAuthHeaders(),
       body: JSON.stringify({ approve }),
     }
   );
@@ -179,7 +338,7 @@ export async function updateSubscription(tenantId, subscriptionPlan) {
 export async function deleteTenant(tenantId) {
   const res = await fetch(`${API_BASE}/admin/tenants/${tenantId}`, {
     method: "DELETE",
-    headers: getAuthHeaders(),
+    headers: getAdminAuthHeaders(),
   });
   return res.json();
 }
@@ -201,7 +360,7 @@ export async function updateSheetsConfig(
 export async function createPlan(plan) {
   const res = await fetch(`${API_BASE}/admin/plans`, {
     method: "POST",
-    headers: getAuthHeaders(),
+    headers: getAdminAuthHeaders(),
     body: JSON.stringify(plan),
   });
   return res.json();
@@ -209,7 +368,7 @@ export async function createPlan(plan) {
 export async function updatePlan(planId, plan) {
   const res = await fetch(`${API_BASE}/admin/plans/${planId}`, {
     method: "PUT",
-    headers: getAuthHeaders(),
+    headers: getAdminAuthHeaders(),
     body: JSON.stringify(plan),
   });
   return res.json();
@@ -217,13 +376,13 @@ export async function updatePlan(planId, plan) {
 export async function deletePlan(planId) {
   const res = await fetch(`${API_BASE}/admin/plans/${planId}`, {
     method: "DELETE",
-    headers: getAuthHeaders(),
+    headers: getAdminAuthHeaders(),
   });
   return res.json();
 }
 export async function fetchTenantStats(tenantId) {
   const res = await fetch(`${API_BASE}/admin/tenants/${tenantId}/stats`, {
-    headers: getAuthHeaders(),
+    headers: getAdminAuthHeaders(),
   });
   return res.json();
 }
@@ -269,7 +428,7 @@ export async function fetchAnalytics() {
 export async function resetTenantUsage(tenantId) {
   const res = await fetch(`${API_BASE}/admin/tenants/${tenantId}/reset-usage`, {
     method: "POST",
-    headers: getAuthHeaders(),
+    headers: getAdminAuthHeaders(),
   });
   return res.json();
 }
@@ -277,7 +436,7 @@ export async function resetTenantUsage(tenantId) {
 export async function deduplicateLeads(tenantId) {
   const res = await fetch(`${API_BASE}/admin/deduplicate-leads/${tenantId}`, {
     method: "POST",
-    headers: getAuthHeaders(),
+    headers: getAdminAuthHeaders(),
   });
   return res.json();
 }
@@ -285,7 +444,7 @@ export async function deduplicateLeads(tenantId) {
 // Payment Gateway APIs
 export async function fetchPaymentGateways() {
   const res = await fetch(`${API_BASE}/admin/payment-gateways`, {
-    headers: getAuthHeaders(),
+    headers: getAdminAuthHeaders(),
   });
   return res.json();
 }
@@ -293,7 +452,7 @@ export async function fetchPaymentGateways() {
 export async function updatePaymentGateway(gatewayId, config) {
   const res = await fetch(`${API_BASE}/admin/payment-gateways/${gatewayId}`, {
     method: "PUT",
-    headers: getAuthHeaders(),
+    headers: getAdminAuthHeaders(),
     body: JSON.stringify(config),
   });
   return res.json();
@@ -302,7 +461,7 @@ export async function updatePaymentGateway(gatewayId, config) {
 export async function togglePaymentGateway(gatewayId, enabled) {
   const res = await fetch(`${API_BASE}/admin/payment-gateways/${gatewayId}/toggle`, {
     method: "POST",
-    headers: getAuthHeaders(),
+    headers: getAdminAuthHeaders(),
     body: JSON.stringify({ enabled }),
   });
   return res.json();

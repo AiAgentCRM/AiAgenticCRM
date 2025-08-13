@@ -4,6 +4,10 @@ import AdminSidebar from "../components/AdminSidebar";
 import AdminMobileMenuToggle from "../components/AdminMobileMenuToggle";
 import PaymentGateways from "../components/PaymentGateways";
 import PaymentHistory from "../components/PaymentHistory";
+import NotificationManager from "../components/NotificationManager";
+import WebsiteSettingsManager from "../components/WebsiteSettingsManager";
+import SystemSettingsManager from "../components/SystemSettingsManager";
+import EmailSettingsManager from "../components/EmailSettingsManager";
 import {
   fetchTenants,
   approveTenant,
@@ -21,6 +25,7 @@ import {
   resetTenantUsage,
   deduplicateLeads,
   fetchLeads,
+  adminLogout,
 } from "../services/api";
 
 const SuperAdmin = () => {
@@ -188,12 +193,18 @@ const SuperAdmin = () => {
     }
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem("token");
-    localStorage.removeItem("tenantId");
-    localStorage.removeItem("businessName");
-    localStorage.removeItem("ownerName");
-    navigate("/login");
+  const handleLogout = async () => {
+    try {
+      // Call admin logout API
+      await adminLogout();
+    } catch (error) {
+      console.error('Admin logout error:', error);
+    } finally {
+      // Clear admin data regardless of API call success
+      localStorage.removeItem("adminToken");
+      localStorage.removeItem("adminData");
+      navigate("/admin/login");
+    }
   };
 
   if (loading) {
@@ -581,9 +592,25 @@ const SuperAdmin = () => {
             <PaymentGateways />
           )}
 
-          {activeTab === "paymentHistory" && (
-            <PaymentHistory />
-          )}
+                     {activeTab === "notifications" && (
+             <NotificationManager />
+           )}
+
+           {activeTab === "websiteSettings" && (
+             <WebsiteSettingsManager />
+           )}
+
+           {activeTab === "systemSettings" && (
+             <SystemSettingsManager />
+           )}
+
+           {activeTab === "emailSettings" && (
+             <EmailSettingsManager />
+           )}
+
+           {activeTab === "paymentHistory" && (
+             <PaymentHistory />
+           )}
         </>
       </div>
     </div>

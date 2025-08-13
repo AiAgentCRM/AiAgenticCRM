@@ -36,3 +36,141 @@
     transform: rotate(360deg);
   }
 }
+
+/* Admin Loading Styles */
+.admin-loading {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.loading-spinner {
+  text-align: center;
+  color: white;
+}
+
+.loading-spinner .spinner {
+  width: 50px;
+  height: 50px;
+  border: 4px solid rgba(255, 255, 255, 0.3);
+  border-top: 4px solid white;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin: 0 auto 20px;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Admin Panel New Features Styles */
+.notification-manager,
+.website-settings-manager,
+.system-settings-manager,
+.email-settings-manager {
+  padding: 20px;
+}
+
+.nav-pills .nav-link {
+  color: #6c757d;
+  border: 1px solid #dee2e6;
+  margin-bottom: 5px;
+  border-radius: 0.375rem;
+}
+
+.nav-pills .nav-link.active {
+  background-color: #667eea;
+  color: white;
+  border-color: #667eea;
+}
+
+.nav-pills .nav-link:hover:not(.active) {
+  background-color: #f8f9fa;
+  color: #495057;
+}
+
+.form-control-color {
+  width: 100%;
+  height: 38px;
+}
+
+.accordion-button:not(.collapsed) {
+  background-color: #f8f9fa;
+  color: #495057;
+}
+
+.accordion-button:focus {
+  box-shadow: 0 0 0 0.25rem rgba(102, 126, 234, 0.25);
+}
+
+.card-header h6 {
+  margin-bottom: 0;
+  color: #495057;
+}
+
+.form-check-input:checked {
+  background-color: #667eea;
+  border-color: #667eea;
+}
+
+.form-check-input:focus {
+  border-color: #667eea;
+  box-shadow: 0 0 0 0.25rem rgba(102, 126, 234, 0.25);
+}
+
+.btn-outline-primary {
+  color: #667eea;
+  border-color: #667eea;
+}
+
+.btn-outline-primary:hover {
+  background-color: #667eea;
+  border-color: #667eea;
+}
+
+.btn-primary {
+  background-color: #667eea;
+  border-color: #667eea;
+}
+
+.btn-primary:hover {
+  background-color: #5a67d8;
+  border-color: #5a67d8;
+}
+
+/* Notification cards */
+.notifications-list .card {
+  transition: transform 0.2s ease-in-out;
+}
+
+.notifications-list .card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+/* Settings form improvements */
+.form-label {
+  font-weight: 500;
+  color: #495057;
+}
+
+.text-muted {
+  font-size: 0.875rem;
+}
+
+/* Responsive improvements */
+@media (max-width: 768px) {
+  .nav-pills {
+    flex-direction: row;
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+  
+  .nav-pills .nav-link {
+    margin-bottom: 0;
+    margin-right: 5px;
+  }
+}
