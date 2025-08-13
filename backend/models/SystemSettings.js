@@ -211,7 +211,7 @@ const systemSettingsSchema = new mongoose.Schema({
       },
       currency: {
         type: String,
-        default: 'USD',
+        default: 'INR',
         maxlength: 3
       },
       taxRate: {

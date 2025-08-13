@@ -128,7 +128,7 @@ const EmailSettingsManager = () => {
     const samples = {
       userName: 'John Doe',
       planName: 'Pro',
-      amount: '$49',
+      amount: '₹4,075',
       nextBillingDate: '2025-09-01',
       resetLink: 'https://example.com/reset',
       reason: 'Policy violation',

@@ -516,7 +516,7 @@ const SuperAdmin = () => {
                         />
                       </div>
                       <div className="mb-3">
-                        <label className="form-label">Price (USD/month)</label>
+                        <label className="form-label">Price (INR/month)</label>
                         <input
                           type="number"
                           name="price"

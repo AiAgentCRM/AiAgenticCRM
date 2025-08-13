@@ -25,9 +25,9 @@ const IT_COMPANY_KNOWLEDGE = {
       name: "Web Development",
       description: "Custom websites, e-commerce platforms, web applications",
       pricing: {
-        basic: "$3,000 - $8,000",
-        standard: "$8,000 - $15,000",
-        premium: "$15,000 - $30,000+",
+        basic: "₹2,50,000 - ₹6,50,000",
+        standard: "₹6,50,000 - ₹12,50,000",
+        premium: "₹12,50,000 - ₹25,00,000+",
       },
       timeline: "4-12 weeks",
       features: [
@@ -41,9 +41,9 @@ const IT_COMPANY_KNOWLEDGE = {
       name: "Mobile App Development",
       description: "iOS and Android applications",
       pricing: {
-        basic: "$5,000 - $12,000",
-        standard: "$12,000 - $25,000",
-        premium: "$25,000 - $50,000+",
+        basic: "₹4,15,000 - ₹10,00,000",
+        standard: "₹10,00,000 - ₹20,75,000",
+        premium: "₹20,75,000 - ₹41,50,000+",
       },
       timeline: "6-16 weeks",
       features: [
@@ -57,9 +57,9 @@ const IT_COMPANY_KNOWLEDGE = {
       name: "Cloud Services",
       description: "AWS, Azure, Google Cloud solutions",
       pricing: {
-        basic: "$500/month",
-        standard: "$1,500/month",
-        premium: "$3,000+/month",
+        basic: "₹41,500/month",
+        standard: "₹1,25,000/month",
+        premium: "₹2,50,000+/month",
       },
       timeline: "2-4 weeks",
       features: [
@@ -73,9 +73,9 @@ const IT_COMPANY_KNOWLEDGE = {
       name: "Digital Transformation",
       description: "Complete business process digitization",
       pricing: {
-        basic: "$20,000 - $50,000",
-        standard: "$50,000 - $100,000",
-        premium: "$100,000+",
+        basic: "₹16,60,000 - ₹41,50,000",
+        standard: "₹41,50,000 - ₹83,00,000",
+        premium: "₹83,00,000+",
       },
       timeline: "3-6 months",
       features: [

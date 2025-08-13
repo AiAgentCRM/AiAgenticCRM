@@ -93,8 +93,8 @@ export const mockPaymentHistory = [
     planName: 'Gold Plan',
     planDuration: 'Monthly',
     gateway: 'Razorpay',
-    amount: 99.99,
-    currency: 'USD',
+    amount: 8,325,
+    currency: 'INR',
     status: 'success',
     createdAt: '2024-01-15T10:30:00Z'
   },
@@ -106,8 +106,8 @@ export const mockPaymentHistory = [
     planName: 'Silver Plan',
     planDuration: 'Monthly',
     gateway: 'PayPal',
-    amount: 49.99,
-    currency: 'USD',
+    amount: 4,150,
+    currency: 'INR',
     status: 'success',
     createdAt: '2024-01-14T15:45:00Z'
   },
@@ -119,8 +119,8 @@ export const mockPaymentHistory = [
     planName: 'Gold Plan',
     planDuration: 'Monthly',
     gateway: 'Razorpay',
-    amount: 99.99,
-    currency: 'USD',
+    amount: 8,325,
+    currency: 'INR',
     status: 'failed',
     createdAt: '2024-01-13T09:15:00Z'
   },
@@ -132,8 +132,8 @@ export const mockPaymentHistory = [
     planName: 'Platinum Plan',
     planDuration: 'Monthly',
     gateway: 'Stripe',
-    amount: 199.99,
-    currency: 'USD',
+    amount: 16,600,
+    currency: 'INR',
     status: 'pending',
     createdAt: '2024-01-12T14:20:00Z'
   },
@@ -145,8 +145,8 @@ export const mockPaymentHistory = [
     planName: 'Silver Plan',
     planDuration: 'Monthly',
     gateway: 'PayPal',
-    amount: 49.99,
-    currency: 'USD',
+    amount: 4,150,
+    currency: 'INR',
     status: 'refunded',
     createdAt: '2024-01-11T11:30:00Z'
   },
@@ -158,8 +158,8 @@ export const mockPaymentHistory = [
     planName: 'Gold Plan',
     planDuration: 'Monthly',
     gateway: 'Cashfree',
-    amount: 99.99,
-    currency: 'USD',
+    amount: 8,325,
+    currency: 'INR',
     status: 'success',
     createdAt: '2024-01-10T16:45:00Z'
   },
@@ -171,8 +171,8 @@ export const mockPaymentHistory = [
     planName: 'Platinum Plan',
     planDuration: 'Monthly',
     gateway: 'Razorpay',
-    amount: 199.99,
-    currency: 'USD',
+    amount: 16,600,
+    currency: 'INR',
     status: 'cancelled',
     createdAt: '2024-01-09T13:10:00Z'
   },
@@ -184,8 +184,8 @@ export const mockPaymentHistory = [
     planName: 'Gold Plan',
     planDuration: 'Monthly',
     gateway: 'PayPal',
-    amount: 99.99,
-    currency: 'USD',
+    amount: 8,325,
+    currency: 'INR',
     status: 'success',
     createdAt: '2024-01-08T08:55:00Z'
   }
