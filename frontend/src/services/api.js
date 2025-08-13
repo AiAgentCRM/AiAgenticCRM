@@ -1,7 +1,7 @@
 // src/services/api.js
 // Multi-tenant API service for backend integration
 
-const API_BASE = process.env.REACT_APP_API_BASE || "http://localhost:5000/api";
+const API_BASE = process.env.REACT_APP_API_BASE || "https://api.aiagenticcrm.com/api";
 const SOCKET_URL = process.env.REACT_APP_SOCKET_URL || "http://localhost:5050";
 
 // Helper function to get auth headers
