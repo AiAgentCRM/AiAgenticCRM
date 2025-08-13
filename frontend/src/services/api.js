@@ -1,7 +1,7 @@
 // src/services/api.js
 // Multi-tenant API service for backend integration
 
-const API_BASE = process.env.REACT_APP_API_BASE || "http://localhost:5000/api";
+const API_BASE = process.env.REACT_APP_API_BASE || "https://api.aiagenticcrm.com/api";
 
 // Helper function to get auth headers
 function getAuthHeaders() {
@@ -282,4 +282,54 @@ export async function deduplicateLeads(tenantId) {
   return res.json();
 }
 
+// Payment Gateway APIs
+export async function fetchPaymentGateways() {
+  const res = await fetch(`${API_BASE}/admin/payment-gateways`, {
+    headers: getAuthHeaders(),
+  });
+  return res.json();
+}
 
+export async function updatePaymentGateway(gatewayId, config) {
+  const res = await fetch(`${API_BASE}/admin/payment-gateways/${gatewayId}`, {
+    method: "PUT",
+    headers: getAuthHeaders(),
+    body: JSON.stringify(config),
+  });
+  return res.json();
+}
+
+export async function togglePaymentGateway(gatewayId, enabled) {
+  const res = await fetch(`${API_BASE}/admin/payment-gateways/${gatewayId}/toggle`, {
+    method: "POST",
+    headers: getAuthHeaders(),
+    body: JSON.stringify({ enabled }),
+  });
+  return res.json();
+}
+
+export async function fetchPaymentHistory(filters = {}) {
+  const queryParams = new URLSearchParams(filters).toString();
+  const res = await fetch(`${API_BASE}/admin/payment-history?${queryParams}`, {
+    headers: getAuthHeaders(),
+  });
+  return res.json();
+}
+
+export async function createPaymentIntent(planId, gatewayId) {
+  const res = await fetch(`${API_BASE}/admin/payment-intent`, {
+    method: "POST",
+    headers: getAuthHeaders(),
+    body: JSON.stringify({ planId, gatewayId }),
+  });
+  return res.json();
+}
+
+export async function processPayment(paymentData) {
+  const res = await fetch(`${API_BASE}/admin/process-payment`, {
+    method: "POST",
+    headers: getAuthHeaders(),
+    body: JSON.stringify(paymentData),
+  });
+  return res.json();
+}

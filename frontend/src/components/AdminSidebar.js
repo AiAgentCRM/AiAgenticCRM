@@ -22,6 +22,18 @@ const AdminSidebar = ({ activeTab, setActiveTab, onLogout, isMobileOpen }) => {
       label: 'Plan Requests',
       icon: '📝',
       description: 'Review plan change requests'
+    },
+    {
+      id: 'paymentGateways',
+      label: 'Payment Gateways',
+      icon: '💳',
+      description: 'Configure payment gateways'
+    },
+    {
+      id: 'paymentHistory',
+      label: 'Payment History',
+      icon: '📊',
+      description: 'View payment transactions'
     }
   ];
 

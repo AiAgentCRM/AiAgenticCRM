@@ -2,6 +2,8 @@ import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import AdminSidebar from "../components/AdminSidebar";
 import AdminMobileMenuToggle from "../components/AdminMobileMenuToggle";
+import PaymentGateways from "../components/PaymentGateways";
+import PaymentHistory from "../components/PaymentHistory";
 import {
   fetchTenants,
   approveTenant,
@@ -573,6 +575,14 @@ const SuperAdmin = () => {
                 </div>
               </div>
             </div>
+          )}
+
+          {activeTab === "paymentGateways" && (
+            <PaymentGateways />
+          )}
+
+          {activeTab === "paymentHistory" && (
+            <PaymentHistory />
           )}
         </>
       </div>

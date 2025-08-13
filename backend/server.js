@@ -98,7 +98,18 @@ function printLeadStatus(phoneNumber, stage, message) {
   );
 }
 
-app.use(cors());
+// CORS configuration for production
+app.use(cors({
+  origin: [
+    'http://localhost:3000',
+    'https://aiagenticcrm.com',
+    'https://www.aiagenticcrm.com',
+    'https://app.aiagenticcrm.com'
+  ],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
 app.use(express.json());
 
 // Root route
@@ -127,6 +138,10 @@ app.get("/api/health", (req, res) => {
     database: "connected"
   });
 });
+
+// Payment Gateway Routes
+const paymentGatewayRoutes = require('./routes/payment-gateways');
+app.use('/api', paymentGatewayRoutes);
 
 // MongoDB Connection with proper error handling
 const connectDB = async () => {
@@ -1747,8 +1762,11 @@ app.post("/api/admin/deduplicate-leads/:tenantId", async (req, res) => {
 });
 
 const PORT = process.env.PORT || 5000;
-server.listen(PORT, () => {
-  console.log(`🚀 Multi-tenant WhatsApp Autoresponder running on port ${PORT}`);
+const HOST = process.env.HOST || '0.0.0.0';
+
+server.listen(PORT, HOST, () => {
+  console.log(`🚀 Multi-tenant WhatsApp Autoresponder running on ${HOST}:${PORT}`);
+  console.log(`🌐 Production URL: https://api.aiagenticcrm.com`);
 });
 
 // --- Global error handlers to prevent server crash ---
