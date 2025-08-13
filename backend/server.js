@@ -286,9 +286,19 @@ app.get("/api/admin/plans", authenticateAdmin, requirePermission('manage_plans')
 // Public plans endpoint for registration
 app.get("/api/plans", async (req, res) => {
   try {
+    console.log("Public plans endpoint called");
+    
+    // Check if MongoDB is connected
+    if (mongoose.connection.readyState !== 1) {
+      console.error("MongoDB not connected. Connection state:", mongoose.connection.readyState);
+      return res.status(500).json({ error: "Database connection not available" });
+    }
+    
     const plans = await SubscriptionPlan.find({ isActive: true });
+    console.log(`Found ${plans.length} active plans:`, plans.map(p => ({ planId: p.planId, planName: p.planName })));
     res.json(plans);
   } catch (error) {
+    console.error("Error in public plans endpoint:", error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -1257,25 +1267,9 @@ app.post(
 );
 
 
-  // List all plans
-  app.get("/api/admin/plans", authenticateAdmin, requirePermission('manage_plans'), async (req, res) => {
-    const plans = await SubscriptionPlan.find({});
-    res.json(plans);
-  });
+  // List all plans (duplicate removed - using the one above that filters for isActive: true)
 
-  // Create a new plan
-  app.post("/api/admin/plans", authenticateAdmin, requirePermission('manage_plans'), async (req, res) => {
-    try {
-      const { planId, planName, price, initialMessageLimit, conversationLimit, followupLimit, features } = req.body;
-      let plan = await SubscriptionPlan.findOne({ planId });
-      if (plan) return res.status(400).json({ error: "Plan ID already exists" });
-      plan = new SubscriptionPlan({ planId, planName, price, initialMessageLimit, conversationLimit, followupLimit, features });
-      await plan.save();
-      res.status(201).json(plan);
-    } catch (error) {
-      res.status(500).json({ error: error.message });
-    }
-  });
+  // Create a new plan (duplicate removed - using the one above)
 
   // Edit a plan
   app.put("/api/admin/plans/:planId", authenticateAdmin, requirePermission('manage_plans'), async (req, res) => {

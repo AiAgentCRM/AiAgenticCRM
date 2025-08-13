@@ -76,9 +76,9 @@ const Register = () => {
     }
   };
 
-  const selectedPlan = plans.find(
+  const selectedPlan = Array.isArray(plans) ? plans.find(
     (plan) => plan.planId === formData.subscriptionPlan
-  );
+  ) : null;
 
   return (
     <div className="auth-container">
@@ -213,7 +213,7 @@ const Register = () => {
             <div className="plan-selection">
               <label className="form-label">Choose Your Plan</label>
               <div className="plans-grid">
-                {plans.map((plan) => (
+                {Array.isArray(plans) && plans.map((plan) => (
                   <div
                     key={plan.planId}
                     className={`plan-card ${

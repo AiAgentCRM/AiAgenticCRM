@@ -1,8 +1,13 @@
 // src/services/api.js
 // Multi-tenant API service for backend integration
 
-const API_BASE = process.env.REACT_APP_API_BASE || "https://api.aiagenticcrm.com/api";
-const SOCKET_URL = process.env.REACT_APP_SOCKET_URL || "http://localhost:5050";
+// Detect if running locally and use appropriate API base
+const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+const API_BASE = process.env.REACT_APP_API_BASE || (isLocalhost ? "http://localhost:5000/api" : "https://api.aiagenticcrm.com/api");
+const SOCKET_URL = process.env.REACT_APP_SOCKET_URL || (isLocalhost ? "http://localhost:5050" : "https://api.aiagenticcrm.com");
+
+// Log API configuration for debugging
+console.log(`API Configuration: isLocalhost=${isLocalhost}, API_BASE=${API_BASE}, SOCKET_URL=${SOCKET_URL}`);
 
 // Helper function to get auth headers
 function getAuthHeaders() {
@@ -235,10 +240,40 @@ export async function fetchPlans() {
 }
 
 export async function fetchPublicPlans() {
-  const res = await fetch(`${API_BASE}/plans`, {
-    headers: { "Content-Type": "application/json" },
-  });
-  return res.json();
+  try {
+    console.log(`Fetching plans from: ${API_BASE}/plans`);
+    const res = await fetch(`${API_BASE}/plans`, {
+      headers: { "Content-Type": "application/json" },
+    });
+    
+    if (!res.ok) {
+      throw new Error(`HTTP error! status: ${res.status}`);
+    }
+    
+    const data = await res.json();
+    console.log('Plans response:', data);
+    
+    // Ensure we always return an array
+    if (Array.isArray(data)) {
+      return data;
+    } else if (data && typeof data === 'object') {
+      console.warn('Plans response is not an array:', data);
+      return [];
+    } else {
+      console.warn('Unexpected plans response type:', typeof data, data);
+      return [];
+    }
+  } catch (error) {
+    console.error('Error fetching plans:', error);
+    
+    // Check if it's a network error (backend not reachable)
+    if (error.name === 'TypeError' && error.message.includes('fetch')) {
+      console.error('Network error - backend may not be running');
+      throw new Error('Backend server is not reachable. Please ensure the backend is running.');
+    }
+    
+    return [];
+  }
 }
 
 export async function createOrUpdatePlan(planData) {

@@ -10,7 +10,7 @@ import LeadsTable from "../components/LeadsTable";
 import {
   fetchUsage,
   updateSubscription,
-  fetchPlans,
+  fetchPublicPlans,
   updateSheetsConfig,
 } from "../services/api";
 
@@ -44,14 +44,29 @@ const TenantDashboard = () => {
     try {
       const [usageData, plansData] = await Promise.all([
         fetchUsage(tenantId),
-        fetchPlans(),
+        fetchPublicPlans(),
       ]);
+      
+      // Ensure plans is always an array
+      const plansArray = Array.isArray(plansData) ? plansData : [];
+      if (!Array.isArray(plansData)) {
+        console.warn("Plans data is not an array:", plansData);
+        setMessage("Warning: Unable to load subscription plans. Please refresh the page.");
+      }
+      
+      if (plansArray.length === 0) {
+        console.warn("No plans found");
+        setMessage("Warning: No subscription plans found. Please contact support.");
+      }
+      
       setUsage(usageData);
-      setPlans(plansData);
+      setPlans(plansArray);
     } catch (error) {
       console.error("Failed to load data:", error);
       if (error.message?.includes("401") || error.message?.includes("403")) {
         navigate("/login");
+      } else {
+        setMessage("Error loading data. Please refresh the page.");
       }
     } finally {
       setLoading(false);
@@ -134,9 +149,9 @@ const TenantDashboard = () => {
     );
   }
 
-  const currentPlan = plans.find(
+  const currentPlan = Array.isArray(plans) ? plans.find(
     (plan) => plan.planId === usage.tenant.subscriptionPlan
-  );
+  ) : null;
 
   return (
     <div className="dashboard-layout">
@@ -271,7 +286,7 @@ const TenantDashboard = () => {
                 <div className="card-body">
                   <h5 className="card-title">Upgrade Plan</h5>
                   <div className="row">
-                    {plans.map((plan) => (
+                    {Array.isArray(plans) && plans.map((plan) => (
                       <div key={plan.planId} className="col-md-4 mb-3">
                         <div
                           className={`card ${
