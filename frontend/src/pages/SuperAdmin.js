@@ -475,7 +475,7 @@ const SuperAdmin = () => {
                         <div className="card-body">
                           <h6 className="card-title">{plan.planName}</h6>
                           <p className="card-text">
-                            <strong>Price:</strong> ${plan.price}/month<br />
+                            <strong>Price:</strong> ₹{plan.price}/month<br />
                             <strong>Initial Messages:</strong> {plan.initialMessageLimit}<br />
                             <strong>AI Conversations:</strong> {plan.conversationLimit}<br />
                             <strong>Follow-up Messages:</strong> {plan.followupLimit}<br />

@@ -191,7 +191,7 @@ const TenantDashboard = () => {
                   <h6 className="text-primary">
                     {currentPlan?.planName || "Unknown"}
                   </h6>
-                  <small className="text-muted">${currentPlan?.price}/month</small>
+                  <small className="text-muted">₹{currentPlan?.price}/month</small>
                 </div>
               </div>
             </div>
@@ -282,7 +282,7 @@ const TenantDashboard = () => {
                         >
                           <div className="card-body text-center">
                             <h6 className="card-title">{plan.planName}</h6>
-                            <h5 className="text-primary">${plan.price}/month</h5>
+                            <h5 className="text-primary">₹{plan.price}/month</h5>
                             <ul className="list-unstyled">
                               <li>{plan.initialMessageLimit} Initial Messages</li>
                               <li>{plan.conversationLimit} AI Conversations</li>

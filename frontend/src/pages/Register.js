@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { register, fetchPlans } from "../services/api";
+import { register, fetchPublicPlans } from "../services/api";
 import "./Auth.css";
 
 const Register = () => {
@@ -26,7 +26,7 @@ const Register = () => {
 
   const loadPlans = async () => {
     try {
-      const plansData = await fetchPlans();
+      const plansData = await fetchPublicPlans();
       setPlans(plansData);
     } catch (error) {
       console.error("Failed to load plans:", error);
@@ -224,7 +224,7 @@ const Register = () => {
                     <div className="plan-header">
                       <h3 className="plan-name">{plan.planName}</h3>
                       <div className="plan-price">
-                        <span className="price-amount">${plan.price}</span>
+                        <span className="price-amount">₹{plan.price}</span>
                         <span className="price-period">/month</span>
                       </div>
                     </div>

@@ -95,7 +95,7 @@ const mockPaymentHistory = [
     planName: 'Gold Plan',
     planDuration: 'Monthly',
     gateway: 'Razorpay',
-    amount: 8,325,
+    amount: 8325,
     currency: 'INR',
     status: 'success',
     createdAt: '2024-01-15T10:30:00Z'
@@ -108,7 +108,7 @@ const mockPaymentHistory = [
     planName: 'Silver Plan',
     planDuration: 'Monthly',
     gateway: 'PayPal',
-    amount: 4,150,
+    amount: 4150,
     currency: 'INR',
     status: 'success',
     createdAt: '2024-01-14T15:45:00Z'
@@ -121,7 +121,7 @@ const mockPaymentHistory = [
     planName: 'Gold Plan',
     planDuration: 'Monthly',
     gateway: 'Razorpay',
-    amount: 8,325,
+    amount: 8325,
     currency: 'INR',
     status: 'failed',
     createdAt: '2024-01-13T09:15:00Z'
@@ -225,7 +225,7 @@ router.post('/admin/payment-intent', (req, res) => {
       id: `pi_${Date.now()}`,
       planId,
       gatewayId,
-      amount: 8,325, // Mock amount
+      amount: 8325, // Mock amount
       currency: 'INR',
       status: 'requires_payment_method',
       created_at: new Date().toISOString()

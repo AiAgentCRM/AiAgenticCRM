@@ -283,6 +283,16 @@ app.get("/api/admin/plans", authenticateAdmin, requirePermission('manage_plans')
   res.json(plans);
 });
 
+// Public plans endpoint for registration
+app.get("/api/plans", async (req, res) => {
+  try {
+    const plans = await SubscriptionPlan.find({ isActive: true });
+    res.json(plans);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.post("/api/admin/plans", authenticateAdmin, requirePermission('manage_plans'), async (req, res) => {
   try {
     const {

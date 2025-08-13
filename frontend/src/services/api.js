@@ -234,6 +234,13 @@ export async function fetchPlans() {
   return res.json();
 }
 
+export async function fetchPublicPlans() {
+  const res = await fetch(`${API_BASE}/plans`, {
+    headers: { "Content-Type": "application/json" },
+  });
+  return res.json();
+}
+
 export async function createOrUpdatePlan(planData) {
   const res = await fetch(`${API_BASE}/admin/plans`, {
     method: "POST",

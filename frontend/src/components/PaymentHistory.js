@@ -92,8 +92,7 @@ const PaymentHistory = () => {
       'razorpay': '💳',
       'cashfree': '💰',
       'paypal': '🔵',
-      'stripe': '💳',
-      'razorpay': '💳'
+      'stripe': '💳'
     };
     return gatewayIcons[gateway.toLowerCase()] || '💳';
   };
