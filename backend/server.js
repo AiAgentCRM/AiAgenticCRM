@@ -437,14 +437,23 @@ app.post(
 // Register new business (pending approval) - Updated with plan selection
 app.post("/api/admin/register", async (req, res) => {
   try {
-    const { businessName, ownerName, email, password, subscriptionPlan } =
-      req.body;
+    const { businessName, ownerName, email, password, subscriptionPlan } = req.body;
     const existingTenant = await Tenant.findOne({ email });
     if (existingTenant)
       return res.status(400).json({ error: "Business already registered" });
-
-    const plan = await SubscriptionPlan.findOne({ planId: subscriptionPlan });
-    if (!plan) return res.status(400).json({ error: "Invalid plan selected" });
+    // Determine default plan: use provided plan only if valid and active; otherwise fallback to free plan
+    let planIdToUse = subscriptionPlan;
+    let plan = null;
+    if (planIdToUse) {
+      plan = await SubscriptionPlan.findOne({ planId: planIdToUse, isActive: true });
+    }
+    if (!plan) {
+      plan = await SubscriptionPlan.findOne({ planId: "free", isActive: true });
+      planIdToUse = plan ? plan.planId : null;
+    }
+    if (!planIdToUse) {
+      return res.status(500).json({ error: "Default Free plan not configured" });
+    }
 
     const hashedPassword = await bcrypt.hash(password, 10);
     const tenant = new Tenant({
@@ -453,7 +462,7 @@ app.post("/api/admin/register", async (req, res) => {
       ownerName,
       email,
       password: hashedPassword,
-      subscriptionPlan: subscriptionPlan || "silver",
+      subscriptionPlan: planIdToUse,
       subscriptionStartDate: new Date(),
       subscriptionEndDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days
       monthlyUsage: {

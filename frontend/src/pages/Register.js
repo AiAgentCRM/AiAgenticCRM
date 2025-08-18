@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { register, fetchPublicPlans } from "../services/api";
+import { register } from "../services/api";
 import "./Auth.css";
 
 const Register = () => {
@@ -12,7 +12,6 @@ const Register = () => {
     confirmPassword: "",
     subscriptionPlan: "silver",
   });
-  const [plans, setPlans] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -20,18 +19,7 @@ const Register = () => {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const navigate = useNavigate();
 
-  useEffect(() => {
-    loadPlans();
-  }, []);
-
-  const loadPlans = async () => {
-    try {
-      const plansData = await fetchPublicPlans();
-      setPlans(plansData);
-    } catch (error) {
-      console.error("Failed to load plans:", error);
-    }
-  };
+  // No plan selection at signup; will default to free plan on backend
 
   const handleChange = (e) => {
     setFormData({
@@ -58,7 +46,7 @@ const Register = () => {
         ownerName: formData.ownerName,
         email: formData.email,
         password: formData.password,
-        subscriptionPlan: formData.subscriptionPlan,
+        // Do not send a plan; backend will assign default free plan
       });
 
       if (response.message) {
@@ -76,9 +64,7 @@ const Register = () => {
     }
   };
 
-  const selectedPlan = Array.isArray(plans) ? plans.find(
-    (plan) => plan.planId === formData.subscriptionPlan
-  ) : null;
+  // Plan selection is removed from signup
 
   return (
     <div className="auth-container">
@@ -210,55 +196,7 @@ const Register = () => {
               </div>
             </div>
 
-            <div className="plan-selection">
-              <label className="form-label">Choose Your Plan</label>
-              <div className="plans-grid">
-                {Array.isArray(plans) && plans.map((plan) => (
-                  <div
-                    key={plan.planId}
-                    className={`plan-card ${
-                      formData.subscriptionPlan === plan.planId ? "selected" : ""
-                    }`}
-                    onClick={() => setFormData({...formData, subscriptionPlan: plan.planId})}
-                  >
-                    <div className="plan-header">
-                      <h3 className="plan-name">{plan.planName}</h3>
-                      <div className="plan-price">
-                        <span className="price-amount">₹{plan.price}</span>
-                        <span className="price-period">/month</span>
-                      </div>
-                    </div>
-                    
-                    <div className="plan-features">
-                      <div className="feature">
-                        <span className="feature-icon">💬</span>
-                        <span>{plan.initialMessageLimit} Initial Messages</span>
-                      </div>
-                      <div className="feature">
-                        <span className="feature-icon">🤖</span>
-                        <span>{plan.conversationLimit} AI Conversations</span>
-                      </div>
-                      <div className="feature">
-                        <span className="feature-icon">📈</span>
-                        <span>{plan.followupLimit} Follow-up Messages</span>
-                      </div>
-                    </div>
-                    
-                    <div className="plan-selector">
-                      <input
-                        type="radio"
-                        name="subscriptionPlan"
-                        value={plan.planId}
-                        checked={formData.subscriptionPlan === plan.planId}
-                        onChange={handleChange}
-                        className="plan-radio"
-                      />
-                      <div className="radio-custom"></div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
+            {/* Plan selection removed: new tenants start on Free plan */}
 
             <button
               type="submit"
