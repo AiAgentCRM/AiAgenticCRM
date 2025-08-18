@@ -1160,7 +1160,13 @@ app.get(
           authStrategy: new LocalAuth({ clientId: tenantId }),
           puppeteer: {
             headless: true,
-            args: ["--no-sandbox", "--disable-setuid-sandbox"],
+            executablePath: process.env.PUPPETEER_EXECUTABLE_PATH,
+            args: [
+              "--no-sandbox",
+              "--disable-setuid-sandbox",
+              "--disable-dev-shm-usage",
+              "--disable-gpu"
+            ],
           },
         });
         // Attach all event handlers for this tenant only
@@ -2008,7 +2014,13 @@ app.get("/api/:tenantId/whatsapp/status", authenticateToken, tenantMiddleware, a
           authStrategy: new LocalAuth({ clientId: tenant.tenantId }),
           puppeteer: {
             headless: true,
-            args: ["--no-sandbox", "--disable-setuid-sandbox"],
+            executablePath: process.env.PUPPETEER_EXECUTABLE_PATH,
+            args: [
+              "--no-sandbox",
+              "--disable-setuid-sandbox",
+              "--disable-dev-shm-usage",
+              "--disable-gpu"
+            ],
           },
         });
         // Robust session cleanup with retry
