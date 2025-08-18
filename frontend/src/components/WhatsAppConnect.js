@@ -1,8 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
-import { fetchWhatsAppQR } from "../services/api";
+import { fetchWhatsAppQR, fetchWhatsAppStatus, SOCKET_URL } from "../services/api";
 import io from "socket.io-client";
-
-const SOCKET_URL = process.env.REACT_APP_SOCKET_URL || "http://localhost:5050";
 
 const WhatsAppConnect = ({ tenantId }) => {
   const [qr, setQr] = useState(null);
@@ -15,10 +13,7 @@ const WhatsAppConnect = ({ tenantId }) => {
 
   const pollStatus = async () => {
     try {
-      const res = await fetch(`/api/${tenantId}/whatsapp/status`, {
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${localStorage.getItem("token")}` },
-      });
-      const data = await res.json();
+      const data = await fetchWhatsAppStatus(tenantId);
       if (data.status === "ready") {
         setReady(true);
         setMessage("WhatsApp is ready!");
@@ -78,10 +73,7 @@ const WhatsAppConnect = ({ tenantId }) => {
     setQr(null);
     setReady(false);
     try {
-      const res = await fetch(`/api/${tenantId}/whatsapp/status`, {
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${localStorage.getItem("token")}` },
-      });
-      const data = await res.json();
+      const data = await fetchWhatsAppStatus(tenantId);
       if (data.status === "ready") {
         setReady(true);
         setMessage("WhatsApp is ready!");
@@ -102,7 +94,7 @@ const WhatsAppConnect = ({ tenantId }) => {
     if (socketRef.current) {
       socketRef.current.disconnect();
     }
-    const socket = io(SOCKET_URL, { transports: ["websocket"] });
+    const socket = io(SOCKET_URL, { transports: ["websocket"], withCredentials: true });
     socketRef.current = socket;
     socket.emit("join-tenant", tenantId);
     socket.on("whatsapp-qr", (data) => {
@@ -166,13 +158,14 @@ const WhatsAppConnect = ({ tenantId }) => {
   return (
     <div className="mb-4">
       <h3>WhatsApp Connection</h3>
-      <button
-        className="btn btn-success mb-2 mr-2"
-        onClick={handleRequestQr}
-        disabled={loading || ready}
-      >
-        {loading ? "Connecting..." : ready ? "Connected" : "Connect WhatsApp"}
-      </button>
+      <div className="d-flex align-items-center flex-nowrap mb-2">
+        <button
+          className="btn btn-success me-2"
+          onClick={handleRequestQr}
+          disabled={loading || ready}
+        >
+          {loading ? "Connecting..." : ready ? "Connected" : "Connect WhatsApp"}
+        </button>
       {/* <button
         className="btn btn-outline-primary mb-2 ms-2"
         onClick={handleCheckStatus}
@@ -180,12 +173,13 @@ const WhatsAppConnect = ({ tenantId }) => {
       >
         Check WhatsApp Status
       </button> */}
-      {ready && (
-        <span className="badge bg-success ms-2" style={{ fontSize: '1rem' }}>✔ Connected</span>
-      )}
-      {!ready && !loading && (
-        <span className="badge bg-danger ms-2" style={{ fontSize: '1rem' }}>Not Connected</span>
-      )}
+        {ready && (
+          <span className="btn btn-success disabled" aria-disabled="true">✔ Connected</span>
+        )}
+        {!ready && !loading && (
+          <span className="btn btn-danger disabled" aria-disabled="true">Not Connected</span>
+        )}
+      </div>
       {qr && (
         <div>
           <p>{message}</p>

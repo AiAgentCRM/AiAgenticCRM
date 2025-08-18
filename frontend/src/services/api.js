@@ -4,7 +4,7 @@
 // Detect if running locally and use appropriate API base
 const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
 const API_BASE = process.env.REACT_APP_API_BASE || (isLocalhost ? "http://localhost:5000/api" : "https://api.aiagenticcrm.com/api");
-const SOCKET_URL = process.env.REACT_APP_SOCKET_URL || (isLocalhost ? "http://localhost:5050" : "https://api.aiagenticcrm.com");
+export const SOCKET_URL = process.env.REACT_APP_SOCKET_URL || (isLocalhost ? "http://localhost:5050" : "https://api.aiagenticcrm.com");
 
 // Log API configuration for debugging
 console.log(`API Configuration: isLocalhost=${isLocalhost}, API_BASE=${API_BASE}, SOCKET_URL=${SOCKET_URL}`);
@@ -355,6 +355,13 @@ export async function updateKnowledgebase(tenantId, content) {
 
 export async function fetchWhatsAppQR(tenantId) {
   const res = await fetch(getTenantUrl(tenantId, "whatsapp/qr"), {
+    headers: getAuthHeaders(),
+  });
+  return res.json();
+}
+
+export async function fetchWhatsAppStatus(tenantId) {
+  const res = await fetch(getTenantUrl(tenantId, "whatsapp/status"), {
     headers: getAuthHeaders(),
   });
   return res.json();

@@ -400,14 +400,14 @@ const TenantDashboard = () => {
             )}
 
             {activeTab === "whatsapp" && (
-              <div className="card">
+              <div className="card whatsapp-card">
                 <div className="card-body">
-                  <div className="row">
-                    <div className="col-md-6">
-                      <h5 className="card-title mb-3">WhatsApp Connection</h5>
+                  <div className="row g-4 align-items-center">
+                    <div className="col-md-6 left-pane">
+                      {/* <h5 className="card-title mb-3">WhatsApp Connection</h5> */}
                       <WhatsAppConnect tenantId={tenantId} />
                     </div>
-                    <div className="col-md-6">
+                    <div className="col-md-6 right-pane">
                       <h5 className="card-title mb-3">Launch WhatsApp</h5>
                       <p className="text-muted mb-3">
                         Launch WhatsApp Web with your saved session files. This will open WhatsApp in a new browser window with your authenticated session.

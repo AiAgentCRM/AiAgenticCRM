@@ -174,3 +174,23 @@
     margin-right: 5px;
   }
 }
+
+/* WhatsApp tab layout refinements */
+.whatsapp-card {
+  min-height: 420px;
+}
+
+@media (min-width: 768px) {
+  .whatsapp-card .left-pane {
+    border-right: 1px solid rgba(0, 0, 0, 0.075);
+  }
+  .whatsapp-card .right-pane {
+    padding-left: 24px;
+  }
+}
+
+@media (max-width: 767.98px) {
+  .whatsapp-card {
+    min-height: unset;
+  }
+}

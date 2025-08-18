@@ -24,6 +24,9 @@ const EmailSettings = require("./models/EmailSettings");
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcryptjs");
 const tenantClients = new Map();
+// Cache latest QR (as Data URL) per tenant to avoid timing issues where the QR
+// was generated before the HTTP request arrived
+const tenantLatestQR = new Map();
 const SubscriptionPlan = require("./models/SubscriptionPlan");
 const { cleanPhoneNumber, toWhatsAppId } = require("./utils/phone");
 const http = require("http");
@@ -103,14 +106,20 @@ function printLeadStatus(phoneNumber, stage, message) {
   );
 }
 
-// CORS configuration for production
+// CORS configuration for production (allow staging subdomains)
+const allowedOrigins = (process.env.ALLOWED_ORIGINS || 'http://localhost:3000,https://aiagenticcrm.com,https://www.aiagenticcrm.com,https://app.aiagenticcrm.com').split(',');
 app.use(cors({
-  origin: [
-    'http://localhost:3000',
-    'https://aiagenticcrm.com',
-    'https://www.aiagenticcrm.com',
-    'https://app.aiagenticcrm.com'
-  ],
+  origin: (origin, callback) => {
+    if (!origin) return callback(null, true);
+    if (
+      allowedOrigins.includes(origin) ||
+      origin.endsWith('.aiagenticcrm.com') ||
+      origin === 'https://aiagenticcrm.com'
+    ) {
+      return callback(null, true);
+    }
+    return callback(new Error('Not allowed by CORS'), false);
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
@@ -1199,6 +1208,8 @@ app.get(
             if (!err) {
               // Emit QR code to frontend via socket.io
               socketIo.to(tenantId).emit("whatsapp-qr", { tenantId, qr: dataUrl });
+              // Cache the latest QR for this tenant for a short period
+              tenantLatestQR.set(tenantId, { qr: dataUrl, ts: Date.now() });
               res.json({ status: "qr", qr: dataUrl, message: "Scan this QR code with WhatsApp" });
             } else {
               res.status(500).json({ error: "Failed to generate QR code" });
@@ -1207,6 +1218,12 @@ app.get(
           client.off("qr", qrHandler);
         };
         client.on("qr", qrHandler);
+      // If a recent QR was cached in the last 25 seconds, return it immediately
+        const cached = tenantLatestQR.get(tenantId);
+        if (cached && Date.now() - cached.ts < 25000 && !responded) {
+          responded = true;
+          return res.json({ status: "qr", qr: cached.qr, message: "Scan this QR code with WhatsApp" });
+        }
       // Timeout for QR
         setTimeout(() => {
           if (!responded && !res.headersSent) {
@@ -2058,17 +2075,26 @@ app.get("/api/:tenantId/whatsapp/status", authenticateToken, tenantMiddleware, a
           tenantClients.delete(tenant.tenantId);
           await robustClearSession(sessionDir);
         });
-        // QR re-emission logic: emit QR every 30s if not scanned
+        // QR re-emission logic: convert to data URL, cache, and emit over socket
         let lastQR = null;
+        let lastQRDataUrl = null;
         let qrInterval = null;
         client.on("qr", (qr) => {
           lastQR = qr;
           qrcode.generate(qr, { small: true });
           console.log(`[${tenant.tenantId}] Scan the QR code above with your WhatsApp mobile app.`);
+          require("qrcode").toDataURL(qr, (err, dataUrl) => {
+            if (!err) {
+              lastQRDataUrl = dataUrl;
+              tenantLatestQR.set(tenant.tenantId, { qr: dataUrl, ts: Date.now() });
+              socketIo.to(tenant.tenantId).emit("whatsapp-qr", { tenantId: tenant.tenantId, qr: dataUrl });
+            }
+          });
           if (qrInterval) clearInterval(qrInterval);
           qrInterval = setInterval(() => {
-            if (lastQR) {
-              qrcode.generate(lastQR, { small: true });
+            if (lastQRDataUrl) {
+              socketIo.to(tenant.tenantId).emit("whatsapp-qr", { tenantId: tenant.tenantId, qr: lastQRDataUrl });
+              tenantLatestQR.set(tenant.tenantId, { qr: lastQRDataUrl, ts: Date.now() });
               console.log(`[${tenant.tenantId}] (Re-emitting QR for scan)`);
             }
           }, 30000); // 30 seconds
@@ -2076,6 +2102,7 @@ app.get("/api/:tenantId/whatsapp/status", authenticateToken, tenantMiddleware, a
         client.on("ready", () => {
           if (qrInterval) clearInterval(qrInterval);
           lastQR = null;
+          lastQRDataUrl = null;
         });
         // Attach message handler for incoming messages
         // --- Ensure WhatsApp client message handler is attached only once per client ---
