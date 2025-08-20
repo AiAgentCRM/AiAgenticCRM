@@ -11,11 +11,13 @@ import AdminLogin from "./pages/AdminLogin";
 import SuperAdmin from "./pages/SuperAdmin";
 import TenantDashboard from "./pages/TenantDashboard";
 import AdminRoute from "./components/AdminRoute";
+import ToastContainer from "./components/ToastContainer";
 import "bootstrap/dist/css/bootstrap.min.css";
 
 function App() {
   return (
     <Router>
+      <ToastContainer position="top-right" maxToasts={5} />
       <Routes>
         {/* Public routes */}
         <Route path="/login" element={<Login />} />

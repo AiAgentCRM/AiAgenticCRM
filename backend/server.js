@@ -41,61 +41,112 @@ const io = new Server(server, {
 
 // --- Socket.IO connection logic ---
 io.on("connection", (socket) => {
+  console.log(`🔌 Main Socket.IO client connected: ${socket.id}`);
   // Join tenant room if tenantId is provided
   socket.on("join-tenant", (tenantId) => {
     if (tenantId) {
       socket.join(tenantId);
+      console.log(`🔌 Client ${socket.id} joined tenant room: ${tenantId}`);
     }
+  });
+  
+  socket.on("disconnect", () => {
+    console.log(`🔌 Main Socket.IO client disconnected: ${socket.id}`);
   });
 });
 
-// --- Lead Stage Detection Helper ---
-function determineLeadStage(message, phoneNumber, leadStages) {
+// --- Enhanced Lead Stage Detection Helper ---
+function determineLeadStage(message, phoneNumber, leadStages, currentStage = null) {
   const lowerMessage = message.toLowerCase();
   let detectedStage = null;
   let confidence = 0;
+  
   // Use dynamic leadStages if provided, else fallback to default
   const defaultStages = [
     {
       stage: "Initial Contact",
       description: "First contact - gathering basic information",
-      keywords: ["hello", "hi", "hey", "interested", "information", "tell me", "what do you do"],
+      keywords: ["hello", "hi", "hey", "interested", "information", "tell me", "what do you do", "help", "support"],
+      priority: 1
     },
     {
       stage: "Service Inquiry",
       description: "Asking about specific services and pricing",
-      keywords: ["website", "app", "mobile", "cloud", "development", "services", "pricing", "cost", "price"],
+      keywords: ["website", "app", "mobile", "cloud", "development", "services", "pricing", "cost", "price", "features", "what can you do", "capabilities"],
+      priority: 2
     },
     {
       stage: "Budget Discussion",
       description: "Discussing budget and financial considerations",
-      keywords: ["budget", "afford", "expensive", "cheap", "cost-effective", "investment", "roi", "return"],
+      keywords: ["budget", "afford", "expensive", "cheap", "cost-effective", "investment", "roi", "return", "money", "payment", "plan", "package"],
+      priority: 3
     },
     {
       stage: "Timeline Inquiry",
       description: "Asking about project timeline and deadlines",
-      keywords: ["when", "timeline", "deadline", "urgent", "quick", "fast", "time", "schedule"],
+      keywords: ["when", "timeline", "deadline", "urgent", "quick", "fast", "time", "schedule", "how long", "duration", "start", "finish"],
+      priority: 4
     },
     {
       stage: "Meeting Request",
       description: "Requesting a meeting or appointment",
-      keywords: ["meeting", "appointment", "call", "schedule", "demo", "discussion", "talk"],
+      keywords: ["meeting", "appointment", "call", "schedule", "demo", "discussion", "talk", "consultation", "call me", "contact me"],
+      priority: 5
     },
+    {
+      stage: "Ready to Proceed",
+      description: "Ready to move forward with the project",
+      keywords: ["yes", "okay", "sure", "let's do it", "proceed", "start", "begin", "go ahead", "perfect", "great", "sounds good"],
+      priority: 6
+    }
   ];
+  
   const stagesToUse = Array.isArray(leadStages) && leadStages.length > 0 ? leadStages : defaultStages;
+  
+  // Enhanced keyword matching with context awareness
   for (const stageInfo of stagesToUse) {
     const keywordMatches = (stageInfo.keywords || []).filter((keyword) =>
       lowerMessage.includes(keyword)
     );
+    
     if (keywordMatches.length > 0) {
-      const stageConfidence = keywordMatches.length / (stageInfo.keywords ? stageInfo.keywords.length : 1);
+      // Calculate confidence based on keyword matches and context
+      let stageConfidence = keywordMatches.length / (stageInfo.keywords ? stageInfo.keywords.length : 1);
+      
+      // Boost confidence for stage progression (moving forward in the funnel)
+      if (currentStage && stageInfo.priority > getStagePriority(currentStage, stagesToUse)) {
+        stageConfidence *= 1.5; // Boost confidence for progression
+      }
+      
+      // Boost confidence for exact matches
+      if (keywordMatches.length === stageInfo.keywords.length) {
+        stageConfidence *= 1.3;
+      }
+      
+      // Boost confidence for longer, more specific messages
+      if (lowerMessage.length > 20) {
+        stageConfidence *= 1.2;
+      }
+      
       if (stageConfidence > confidence) {
         confidence = stageConfidence;
         detectedStage = stageInfo;
       }
     }
   }
+  
+  // If no stage detected but we have a current stage, maintain it
+  if (!detectedStage && currentStage) {
+    detectedStage = { stage: currentStage, description: "Maintaining current stage" };
+  }
+  
   return detectedStage;
+}
+
+// Helper function to get stage priority
+function getStagePriority(stageName, stages) {
+  const stage = stages.find(s => s.stage === stageName);
+  return stage ? (stage.priority || 0) : 0;
 }
 
 // --- Lead Status Debug Helper ---
@@ -1751,7 +1802,7 @@ async function getGroqReply(userId, message, memory, systemPrompt) {
   }
 }
 
-// --- Follow-up Scheduling Logic ---
+// --- Enhanced Follow-up Scheduling Logic ---
 const followupTimeouts = {};
 async function scheduleAutoFollowups(tenantId) {
   const tenant = await Tenant.findOne({ tenantId });
@@ -1759,11 +1810,13 @@ async function scheduleAutoFollowups(tenantId) {
     console.log(`[${tenantId}] Tenant not found or not active. Skipping auto followup.`);
     return;
   }
+  
   const settings = await Settings.findOne({ tenantId });
   if (!settings) {
     console.log(`[${tenantId}] No settings found. Skipping auto followup.`);
     return;
   }
+  
   // Always provide autoFollowupForIncoming (default false)
   const autoFollowupForIncoming = settings.autoFollowupForIncoming === undefined ? false : settings.autoFollowupForIncoming;
   const plan = await SubscriptionPlan.findOne({ planId: tenant.subscriptionPlan });
@@ -1771,203 +1824,311 @@ async function scheduleAutoFollowups(tenantId) {
     console.log(`[${tenantId}] No plan found. Skipping auto followup.`);
     return;
   }
+  
   const followupMessages = settings.followupMessages || ["", "", ""];
-  const followupDelays = settings.followupDelays || [86400000, 172800000, 259200000];
+  const followupDelays = settings.followupDelays || [86400000, 172800000, 259200000]; // 24h, 48h, 72h
   const followupLimit = plan.followupLimit || 3;
+
+  console.log(`[${tenantId}] 🔄 Starting follow-up scheduling...`);
+  console.log(`[${tenantId}] 📝 Follow-up templates:`, followupMessages.map((msg, i) => `#${i+1}: "${msg.substring(0, 30)}${msg.length > 30 ? '...' : ''}"`));
+  console.log(`[${tenantId}] ⏰ Follow-up delays:`, followupDelays.map((delay, i) => `#${i+1}: ${Math.round(delay/3600000)}h`));
+  console.log(`[${tenantId}] 🎯 Plan follow-up limit:`, followupLimit);
+  console.log(`[${tenantId}] 🔄 Auto followup for incoming:`, autoFollowupForIncoming);
 
   // --- LOGGING FIX: Only log a single warning if not enough templates ---
   if (followupMessages.length < followupLimit) {
-    console.log(`[${tenantId}] WARNING: Only ${followupMessages.length} follow-up templates provided, but plan allows ${followupLimit}. Will only send up to ${followupMessages.length} follow-ups.`);
+    console.log(`[${tenantId}] ⚠️ WARNING: Only ${followupMessages.length} follow-up templates provided, but plan allows ${followupLimit}. Will only send up to ${followupMessages.length} follow-ups.`);
   }
 
   // --- LOGGING FIX: Only log once per run for each blank template index ---
   const blankTemplateLogged = {};
 
-  console.log(
-    `[${tenantId}] Using followupMessages=`,
-    followupMessages,
-    "followupDelays=",
-    followupDelays
-  );
   const globalAutoFollowupEnabled = !!settings.globalAutoFollowupEnabled;
   const client = tenantClients.get(tenantId);
   if (!client || !client.info) {
-    console.log(`[${tenantId}] WhatsApp client not ready. Skipping auto followup.`);
+    console.log(`[${tenantId}] ❌ WhatsApp client not ready. Skipping auto followup.`);
     return;
   }
-  const leads = await Lead.find({ tenantId, initialMessageSent: true }).sort({
-    timestamp: -1,
+  
+  // First, get all leads that have initial messages sent
+  const allLeads = await Lead.find({ 
+    tenantId, 
+    initialMessageSent: true
+  }).sort({ timestamp: -1 });
+
+  // Filter leads that haven't responded after initial message
+  const leads = allLeads.filter(lead => {
+    try {
+      // If no lastRespondedAt, they're eligible
+      if (!lead.lastRespondedAt) return true;
+      
+      // Ensure lastRespondedAt is a valid date
+      if (!(lead.lastRespondedAt instanceof Date) || isNaN(lead.lastRespondedAt.getTime())) {
+        console.log(`[${tenantId}] ⚠️ Invalid lastRespondedAt for lead ${lead.phone}:`, lead.lastRespondedAt);
+        return true; // Consider them eligible if we can't determine
+      }
+      
+      // If they have initialMessageTimestamp, check if they responded after it
+      if (lead.initialMessageTimestamp && lead.initialMessageTimestamp instanceof Date && !isNaN(lead.initialMessageTimestamp.getTime())) {
+        return lead.lastRespondedAt < lead.initialMessageTimestamp;
+      }
+      
+      // If no initialMessageTimestamp, use timestamp as fallback
+      if (lead.timestamp && lead.timestamp instanceof Date && !isNaN(lead.timestamp.getTime())) {
+        return lead.lastRespondedAt < lead.timestamp;
+      }
+      
+      // If we can't determine, consider them eligible
+      console.log(`[${tenantId}] ⚠️ Unable to determine timing for lead ${lead.phone}, considering eligible`);
+      return true;
+    } catch (error) {
+      console.error(`[${tenantId}] ❌ Error filtering lead ${lead.phone}:`, error);
+      return true; // Consider them eligible if there's an error
+    }
   });
+
+  console.log(`[${tenantId}] 📊 Found ${leads.length} leads eligible for follow-ups`);
 
   // Only attempt up to the number of templates or followupLimit, whichever is smaller
   const actualFollowupCount = Math.min(followupMessages.length, followupLimit);
 
   for (const lead of leads) {
-    // ABSOLUTE: Never send follow-ups if user has responded after initial message
-    if (lead.lastRespondedAt && lead.initialMessageTimestamp && lead.lastRespondedAt > lead.initialMessageTimestamp) {
-      console.log(`[${tenantId}] ABSOLUTE: Skipping ALL follow-ups for ${lead.phone} (lead responded after initial message)`);
-      continue;
-    }
-    // Skip follow-up if lead has responded after last sent follow-up or initial message
-    let lastSent = lead.initialMessageTimestamp || lead.timestamp;
-    if (lead.followupStatuses) {
-      for (const status of lead.followupStatuses) {
-        if (status.sent && status.timestamp && status.timestamp > lastSent) {
-          lastSent = status.timestamp;
+    try {
+      console.log(`[${tenantId}] 🔍 Processing lead ${lead.phone} for follow-ups...`);
+      
+      // ABSOLUTE: Never send follow-ups if user has responded after initial message
+      if (lead.lastRespondedAt && lead.initialMessageTimestamp && lead.lastRespondedAt > lead.initialMessageTimestamp) {
+        console.log(`[${tenantId}] ⏭️ ABSOLUTE: Skipping ALL follow-ups for ${lead.phone} (lead responded after initial message)`);
+        continue;
+      }
+    
+      // Skip follow-up if lead has responded after last sent follow-up or initial message
+      let lastSent = lead.initialMessageTimestamp || lead.timestamp;
+      if (lead.followupStatuses) {
+        for (const status of lead.followupStatuses) {
+          if (status.sent && status.timestamp && status.timestamp > lastSent) {
+            lastSent = status.timestamp;
+          }
         }
       }
-    }
-    if (lead.lastRespondedAt && lead.lastRespondedAt > lastSent) {
-      console.log(`[${tenantId}] Skipping follow-up for ${lead.phone} (lead has responded after last message)`);
-      continue;
-    }
-    // --- NEW: Skip followups for incoming leads if disabled ---
-    if (lead.source === "Incoming Message" && !autoFollowupForIncoming) {
-      console.log(`[${tenantId}] Skipping follow-ups for incoming message lead ${lead.phone} (autoFollowupForIncoming is disabled)`);
-      continue;
-    }
-    // Debug eligibility
-    console.log(
-      `[${tenantId}] Lead ${lead.phone}: autoFollowupEnabled=${lead.autoFollowupEnabled}, globalAutoFollowupEnabled=${globalAutoFollowupEnabled}`
-    );
-    if (!(lead.autoFollowupEnabled || globalAutoFollowupEnabled)) {
-      console.log(
-        `[${tenantId}] Skipping lead ${lead.phone} because follow-up is not enabled (autoFollowupEnabled=${lead.autoFollowupEnabled}, globalAutoFollowupEnabled=${globalAutoFollowupEnabled})`
-      );
-      continue;
-    }
-    // Ensure followupStatuses is an array of correct length
-    if (!Array.isArray(lead.followupStatuses)) {
-      lead.followupStatuses = Array(followupLimit).fill({});
-    } else if (lead.followupStatuses.length < followupLimit) {
-      while (lead.followupStatuses.length < followupLimit) lead.followupStatuses.push({});
-    } else if (lead.followupStatuses.length > followupLimit) {
-      lead.followupStatuses = lead.followupStatuses.slice(0, followupLimit);
-    }
-    const sentCount = lead.followupStatuses.filter((f) => f && f.sent).length;
-    const remaining = followupLimit - sentCount;
-    console.log(
-      `[${tenantId}] Lead ${lead.phone}: Follow-ups sent: ${sentCount}, Remaining: ${remaining}/${followupLimit}`
-    );
-    for (let i = 0; i < actualFollowupCount; i++) {
-      const template = followupMessages[i];
-      if (!template) {
-        if (!blankTemplateLogged[i]) {
-          console.log(`[${tenantId}] Follow-up #${i + 1} template is blank, skipping for all leads.`);
-          blankTemplateLogged[i] = true;
+      if (lead.lastRespondedAt && lead.lastRespondedAt > lastSent) {
+        console.log(`[${tenantId}] ⏭️ Skipping follow-up for ${lead.phone} (lead has responded after last message)`);
+        continue;
+      }
+      
+      // --- NEW: Skip followups for incoming leads if disabled ---
+      if (lead.source === "Incoming Message" && !autoFollowupForIncoming) {
+        console.log(`[${tenantId}] ⏭️ Skipping follow-ups for incoming message lead ${lead.phone} (autoFollowupForIncoming is disabled)`);
+        continue;
+      }
+      
+      // Debug eligibility
+      console.log(`[${tenantId}] 🔍 Lead ${lead.phone}: autoFollowupEnabled=${lead.autoFollowupEnabled}, globalAutoFollowupEnabled=${globalAutoFollowupEnabled}`);
+      if (!(lead.autoFollowupEnabled || globalAutoFollowupEnabled)) {
+        console.log(`[${tenantId}] ⏭️ Skipping lead ${lead.phone} because follow-up is not enabled`);
+        continue;
+      }
+      
+      // Ensure followupStatuses is an array of correct length
+      if (!Array.isArray(lead.followupStatuses)) {
+        lead.followupStatuses = Array(followupLimit).fill({});
+      } else if (lead.followupStatuses.length < followupLimit) {
+        while (lead.followupStatuses.length < followupLimit) lead.followupStatuses.push({});
+      } else if (lead.followupStatuses.length > followupLimit) {
+        lead.followupStatuses = lead.followupStatuses.slice(0, followupLimit);
+      }
+      
+      const sentCount = lead.followupStatuses.filter((f) => f && f.sent).length;
+      const remaining = followupLimit - sentCount;
+      console.log(`[${tenantId}] 📊 Lead ${lead.phone}: Follow-ups sent: ${sentCount}, Remaining: ${remaining}/${followupLimit}`);
+      
+      for (let i = 0; i < actualFollowupCount; i++) {
+        const template = followupMessages[i];
+        if (!template || template.trim() === "") {
+          if (!blankTemplateLogged[i]) {
+            console.log(`[${tenantId}] ⚠️ Follow-up #${i + 1} template is blank, skipping for all leads.`);
+            blankTemplateLogged[i] = true;
+          }
+          continue;
         }
-        continue;
-      }
-      if (!template || template.trim() === "") {
-        console.log(
-          `[${tenantId}] Follow-up #${i + 1} template is blank for ${
-            lead.phone
-          }, skipping.`
-        );
-        continue;
-      }
-      if (lead.followupStatuses[i] && lead.followupStatuses[i].sent) {
-        console.log(
-          `[${tenantId}] Follow-up #${i + 1} already sent for ${
-            lead.phone
-          }, skipping.`
-        );
-        continue;
-      }
-      // Calculate when the follow-up should be sent
-      let baseTime = lead.initialMessageTimestamp;
-      if (
-        i > 0 &&
-        lead.followupStatuses[i - 1] &&
-        lead.followupStatuses[i - 1].sent &&
-        lead.followupStatuses[i - 1].timestamp
-      ) {
-        baseTime = lead.followupStatuses[i - 1].timestamp;
-      }
-      if (!baseTime) {
-        console.log(
-          `[${tenantId}] No baseTime for follow-up #${i + 1} for ${
-            lead.phone
-          }, skipping.`
-        );
-        continue;
-      }
-      const dueTime = new Date(baseTime.getTime() + (followupDelays[i] || 0));
-      const now = new Date();
-      // Add detailed debugging
-      console.log(
-        `[${tenantId}] Lead ${lead.phone} - Follow-up #${i + 1}:`,
-        `Initial message sent at: ${lead.initialMessageTimestamp ? lead.initialMessageTimestamp.toISOString() : 'N/A'}`,
-        `Base time for this followup: ${baseTime.toISOString()}`,
-        `Followup delay (ms): ${followupDelays[i]}`,
-        `Due time: ${dueTime.toISOString()}`,
-        `Current time: ${now.toISOString()}`,
-        `Eligible: ${lead.autoFollowupEnabled || globalAutoFollowupEnabled}`
-      );
-      if (now < dueTime) {
-        console.log(
-          `[${tenantId}] Follow-up #${i + 1} for ${
-            lead.phone
-          } not due yet. Due at: ${dueTime.toISOString()}, now: ${now.toISOString()}`
-        );
-        continue;
-      }
-      const waId = toWhatsAppId(lead.phone);
-      // --- Debug WhatsApp client state ---
-      if (client.info) {
-        console.log(`[${tenantId}] WhatsApp client state: READY, my number: ${client.info.wid._serialized}`);
-      } else {
-        console.log(`[${tenantId}] WhatsApp client state: NOT READY`);
-      }
-      // --- Prevent sending to self ---
-      if (client.info && waId === client.info.wid._serialized) {
-        console.log(`[${tenantId}] Skipping sending follow-up to self (${waId})`);
-        continue;
-      }
-      const msgContent = template.replace("{name}", lead.name || "there");
-      if (now >= dueTime) {
-        // Send follow-up now
-        try {
-          console.log(
-            `[${tenantId}] Attempting to send follow-up #${i + 1} to ${
-              lead.phone
-            } (waId: ${waId}) with content: "${msgContent}"`
-          );
-          const sentMsg = await client.sendMessage(waId, msgContent);
-          console.log(`[${tenantId}] WhatsApp sendMessage result:`, sentMsg);
-          lead.followupStatuses[i] = {
-            sent: true,
-            timestamp: new Date(),
-            failed: false,
-            error: undefined,
-          };
-          await lead.save();
-          // Increment followup usage
-          tenant.monthlyUsage.followupMessagesSent = (tenant.monthlyUsage.followupMessagesSent || 0) + 1;
-          await tenant.save();
-          console.log(
-            `[${tenantId}] Sent follow-up #${i + 1} to ${
-              lead.phone
-            } at ${lead.followupStatuses[i].timestamp.toISOString()}`
-          );
-        } catch (err) {
-          lead.followupStatuses[i] = {
-            sent: false,
-            timestamp: new Date(),
-            failed: true,
-            error: err.message,
-          };
-          await lead.save();
-          console.error(
-            `[${tenantId}] Failed to send follow-up #${i + 1} to ${
-              lead.phone
-            } (waId: ${waId}):`,
-            err.message
-          );
+        
+        if (lead.followupStatuses[i] && lead.followupStatuses[i].sent) {
+          console.log(`[${tenantId}] ⏭️ Follow-up #${i + 1} already sent for ${lead.phone}, skipping.`);
+          continue;
+        }
+        
+        // Calculate when the follow-up should be sent
+        let baseTime = lead.initialMessageTimestamp;
+        if (
+          i > 0 &&
+          lead.followupStatuses[i - 1] &&
+          lead.followupStatuses[i - 1].sent &&
+          lead.followupStatuses[i - 1].timestamp
+        ) {
+          baseTime = lead.followupStatuses[i - 1].timestamp;
+        }
+        
+        // Validate baseTime
+        if (!baseTime || !(baseTime instanceof Date) || isNaN(baseTime.getTime())) {
+          console.log(`[${tenantId}] ⚠️ Invalid baseTime for follow-up #${i + 1} for ${lead.phone}:`, baseTime);
+          continue;
+        }
+        
+        // Validate followup delay
+        const delay = followupDelays[i] || 0;
+        if (typeof delay !== 'number' || isNaN(delay) || delay < 0) {
+          console.log(`[${tenantId}] ⚠️ Invalid followup delay for #${i + 1}:`, delay);
+          continue;
+        }
+        
+        const dueTime = new Date(baseTime.getTime() + delay);
+        const now = new Date();
+        
+        // Add detailed debugging
+        console.log(`[${tenantId}] ⏰ Lead ${lead.phone} - Follow-up #${i + 1}:`);
+        console.log(`   📅 Initial message sent at: ${lead.initialMessageTimestamp ? lead.initialMessageTimestamp.toISOString() : 'N/A'}`);
+        console.log(`   📅 Base time for this followup: ${baseTime.toISOString()}`);
+        console.log(`   ⏱️ Followup delay: ${Math.round((followupDelays[i] || 0)/3600000)}h`);
+        console.log(`   🎯 Due time: ${dueTime.toISOString()}`);
+        console.log(`   🕐 Current time: ${now.toISOString()}`);
+        console.log(`   ✅ Eligible: ${lead.autoFollowupEnabled || globalAutoFollowupEnabled}`);
+        
+        if (now < dueTime) {
+          console.log(`[${tenantId}] ⏳ Follow-up #${i + 1} for ${lead.phone} not due yet. Due at: ${dueTime.toISOString()}, now: ${now.toISOString()}`);
+          continue;
+        }
+        
+        const waId = toWhatsAppId(lead.phone);
+        
+        // --- Debug WhatsApp client state ---
+        if (client.info) {
+          console.log(`[${tenantId}] ✅ WhatsApp client state: READY, my number: ${client.info.wid._serialized}`);
+        } else {
+          console.log(`[${tenantId}] ❌ WhatsApp client state: NOT READY`);
+        }
+        
+        // --- Prevent sending to self ---
+        if (client.info && waId === client.info.wid._serialized) {
+          console.log(`[${tenantId}] ⏭️ Skipping sending follow-up to self (${waId})`);
+          continue;
+        }
+        
+        const msgContent = template.replace("{name}", lead.name || "there");
+        
+        if (now >= dueTime) {
+          // Send follow-up now
+          try {
+            console.log(`[${tenantId}] 🚀 Attempting to send follow-up #${i + 1} to ${lead.phone} (waId: ${waId})`);
+            console.log(`[${tenantId}] 📝 Message content: "${msgContent}"`);
+            
+            const sentMsg = await client.sendMessage(waId, msgContent);
+            console.log(`[${tenantId}] ✅ WhatsApp sendMessage result:`, sentMsg);
+            
+            // Ensure followupStatuses array exists and has enough elements
+            if (!Array.isArray(lead.followupStatuses)) {
+              lead.followupStatuses = [];
+            }
+            while (lead.followupStatuses.length <= i) {
+              lead.followupStatuses.push({});
+            }
+            
+            lead.followupStatuses[i] = {
+              sent: true,
+              timestamp: new Date(),
+              failed: false,
+              error: undefined,
+            };
+            
+            try {
+              await lead.save();
+            } catch (saveError) {
+              console.error(`[${tenantId}] ❌ Failed to save lead after sending follow-up #${i + 1}:`, saveError);
+              // Continue with the process even if save fails
+            }
+            
+            // Increment followup usage
+            try {
+              if (!tenant.monthlyUsage) {
+                tenant.monthlyUsage = {};
+              }
+              tenant.monthlyUsage.followupMessagesSent = (tenant.monthlyUsage.followupMessagesSent || 0) + 1;
+              await tenant.save();
+            } catch (usageError) {
+              console.error(`[${tenantId}] ❌ Failed to update tenant usage after follow-up #${i + 1}:`, usageError);
+              // Continue with the process even if usage update fails
+            }
+            
+            console.log(`[${tenantId}] ✅ Sent follow-up #${i + 1} to ${lead.phone} at ${lead.followupStatuses[i].timestamp.toISOString()}`);
+            
+            // Emit follow-up sent event to frontend
+            try {
+              if (io && tenantId) {
+                io.to(tenantId).emit('followup-sent', {
+                  leadId: lead._id,
+                  phone: lead.phone,
+                  followupNumber: i + 1,
+                  message: msgContent,
+                  timestamp: lead.followupStatuses[i].timestamp
+                });
+                console.log(`🔌 Follow-up sent event emitted for lead ${lead.phone}`);
+              }
+            } catch (socketError) {
+              console.error(`[${tenantId}] ❌ Failed to emit follow-up sent event:`, socketError);
+              // Continue with the process even if socket emission fails
+            }
+            
+          } catch (err) {
+            // Ensure followupStatuses array exists and has enough elements
+            if (!Array.isArray(lead.followupStatuses)) {
+              lead.followupStatuses = [];
+            }
+            while (lead.followupStatuses.length <= i) {
+              lead.followupStatuses.push({});
+            }
+            
+            lead.followupStatuses[i] = {
+              sent: false,
+              timestamp: new Date(),
+              failed: true,
+              error: err.message,
+            };
+            
+            try {
+              await lead.save();
+            } catch (saveError) {
+              console.error(`[${tenantId}] ❌ Failed to save lead after follow-up failure #${i + 1}:`, saveError);
+              // Continue with the process even if save fails
+            }
+            
+            console.error(`[${tenantId}] ❌ Failed to send follow-up #${i + 1} to ${lead.phone} (waId: ${waId}):`, err.message);
+            
+            // Emit follow-up failed event to frontend
+            try {
+              if (io && tenantId) {
+                io.to(tenantId).emit('followup-failed', {
+                  leadId: lead._id,
+                  phone: lead.phone,
+                  followupNumber: i + 1,
+                  error: err.message,
+                  timestamp: new Date()
+                });
+                console.log(`🔌 Follow-up failed event emitted for lead ${lead.phone}`);
+              }
+            } catch (socketError) {
+              console.error(`[${tenantId}] ❌ Failed to emit follow-up failed event:`, socketError);
+              // Continue with the process even if socket emission fails
+            }
+          }
         }
       }
+    } catch (leadError) {
+      console.error(`[${tenantId}] ❌ Error processing lead ${lead.phone} for follow-ups:`, leadError);
+      // Continue with the next lead even if this one fails
+      continue;
     }
   }
+  
+  console.log(`[${tenantId}] ✅ Follow-up scheduling completed for ${leads.length} leads`);
 }
 
 // --- Per-tenant fetch interval scheduler ---
@@ -2154,6 +2315,9 @@ app.get("/api/:tenantId/whatsapp/status", authenticateToken, tenantMiddleware, a
             }
             let lead = await Lead.findOne({ tenantId, phone: incomingPhone });
             let isNewLeadFromIncoming = false;
+            console.log(`[INCOMING] Looking for existing lead: tenantId=${tenantId}, phone=${incomingPhone}`);
+            console.log(`[INCOMING] Existing lead found:`, lead ? `Yes (ID: ${lead._id})` : 'No');
+            
             if (lead) {
               // Update source if needed
               if (lead.source !== "Incoming Message") {
@@ -2161,6 +2325,7 @@ app.get("/api/:tenantId/whatsapp/status", authenticateToken, tenantMiddleware, a
               }
               // Always update lastRespondedAt
               lead.lastRespondedAt = new Date();
+              console.log(`[INCOMING] Updated existing lead: ${lead._id}`);
             } else {
               // Create new lead with minimal info, source as 'Incoming Message'
               lead = new Lead({
@@ -2216,20 +2381,51 @@ app.get("/api/:tenantId/whatsapp/status", authenticateToken, tenantMiddleware, a
               console.error(`[${tenantId}] Error fetching settings/knowledgebase:`, e.message);
             }
             // Determine lead stage
-            const leadStage = determineLeadStage(msg.body, msg.from, leadStages);
+            const leadStage = determineLeadStage(msg.body, msg.from, leadStages, lead.detectedStage);
             console.log(`[${tenantId}] Detected stage for ${msg.from}:`, leadStage ? leadStage.stage : "UNKNOWN");
+            console.log(`[${tenantId}] Previous stage was:`, lead.detectedStage || "None");
             printLeadStatus(msg.from, leadStage, msg.body);
+            
             // Update the detectedStage for the corresponding lead in the database
             try {
               if (lead && leadStage && leadStage.stage) {
+                const previousStage = lead.detectedStage;
                 lead.detectedStage = leadStage.stage;
+                
+                // Log stage progression
+                if (previousStage && previousStage !== leadStage.stage) {
+                  console.log(`[${tenantId}] 🎯 Lead ${lead.phone} progressed from "${previousStage}" to "${leadStage.stage}"`);
+                } else if (!previousStage) {
+                  console.log(`[${tenantId}] 🎯 Lead ${lead.phone} assigned initial stage: "${leadStage.stage}"`);
+                }
               }
+              
               // For new or updated leads, save after setting detectedStage and lastRespondedAt
               if (lead) {
+                console.log(`[${tenantId}] Saving lead to database:`, lead._id);
                 await lead.save();
+                console.log(`[${tenantId}] Lead saved successfully:`, lead._id);
+                
                 // Emit real-time update to frontend for this tenant
                 if (io && tenantId) {
-                  socketIo.to(tenantId).emit('lead-updated', lead);
+                  console.log(`🔌 Emitting lead-updated event to tenant ${tenantId} for lead:`, lead._id);
+                  io.to(tenantId).emit('lead-updated', lead);
+                  console.log(`🔌 Lead update emitted successfully`);
+                  
+                  // Also emit a stage-change event for better frontend handling
+                  if (lead.detectedStage) {
+                    io.to(tenantId).emit('lead-stage-changed', {
+                      leadId: lead._id,
+                      phone: lead.phone,
+                      oldStage: previousStage,
+                      newStage: lead.detectedStage,
+                      message: msg.body,
+                      timestamp: new Date()
+                    });
+                    console.log(`🔌 Stage change event emitted: ${previousStage || 'None'} → ${lead.detectedStage}`);
+                  }
+                } else {
+                  console.log(`🔌 Cannot emit lead update: io=${!!io}, tenantId=${tenantId}`);
                 }
               }
             } catch (err) {
@@ -2331,8 +2527,12 @@ socketIo.on("connection", (socket) => {
   socket.on("join-tenant", (tenantId) => {
     if (tenantId) {
       socket.join(tenantId);
-      console.log(`Client joined tenant room: ${tenantId}`);
+      console.log(`🔌 Client ${socket.id} joined tenant room: ${tenantId}`);
     }
+  });
+  
+  socket.on("disconnect", () => {
+    console.log(`🔌 Main Socket.IO client disconnected: ${socket.id}`);
   });
 });
 
@@ -2361,6 +2561,93 @@ process.on('unhandledRejection', (reason, promise) => {
 });
 process.on('uncaughtException', (err) => {
   console.error('Uncaught Exception thrown:', err);
+});
+
+// Test endpoint to manually create a lead and test socket emission
+app.post("/api/test/create-lead/:tenantId", async (req, res) => {
+  try {
+    const { tenantId } = req.params;
+    const { phone, name = "Test User", message = "hi" } = req.body;
+    
+    if (!phone) {
+      return res.status(400).json({ error: "Phone number is required" });
+    }
+    
+    // Check if tenant exists
+    const tenant = await Tenant.findOne({ tenantId });
+    if (!tenant) {
+      return res.status(404).json({ error: "Tenant not found" });
+    }
+    
+    // Check if lead already exists
+    let lead = await Lead.findOne({ tenantId, phone });
+    if (!lead) {
+      // Create new lead
+      lead = new Lead({
+        tenantId,
+        name,
+        phone,
+        status: "New",
+        source: "Test API",
+        timestamp: new Date(),
+        lastRespondedAt: new Date(),
+      });
+    } else {
+      // Update existing lead
+      lead.lastRespondedAt = new Date();
+    }
+    
+    // Determine lead stage
+    const leadStage = determineLeadStage(message, phone, []);
+    if (leadStage && leadStage.stage) {
+      lead.detectedStage = leadStage.stage;
+    }
+    
+    // Save lead
+    await lead.save();
+    console.log(`[TEST] Created/updated lead:`, lead._id);
+    
+    // Emit socket event
+    if (io && tenantId) {
+      console.log(`[TEST] Emitting lead-updated event to tenant ${tenantId}`);
+      io.to(tenantId).emit('lead-updated', lead);
+      console.log(`[TEST] Lead update emitted successfully`);
+    }
+    
+    res.json({ 
+      success: true, 
+      lead, 
+      socketEmitted: !!(io && tenantId),
+      message: "Lead created/updated and socket event emitted"
+    });
+    
+  } catch (error) {
+    console.error("[TEST] Error creating test lead:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Test endpoint to manually trigger follow-ups
+app.post("/api/:tenantId/test-followups", authenticateToken, tenantMiddleware, async (req, res) => {
+  try {
+    const { tenantId } = req.params;
+    const { leadId } = req.body;
+    
+    console.log(`[TEST] Testing follow-ups for tenant ${tenantId}, lead ${leadId}`);
+    
+    // Manually trigger follow-up scheduling
+    await scheduleAutoFollowups(tenantId);
+    
+    res.json({ 
+      success: true, 
+      message: "Follow-up scheduling triggered successfully",
+      timestamp: new Date()
+    });
+    
+  } catch (error) {
+    console.error("[TEST] Error testing follow-ups:", error);
+    res.status(500).json({ error: error.message });
+  }
 });
 
 

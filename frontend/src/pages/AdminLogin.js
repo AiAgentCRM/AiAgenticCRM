@@ -69,7 +69,7 @@ const AdminLogin = () => {
             <div className="form-group">
               <label className="form-label">Username or Email</label>
               <div className="input-wrapper">
-                <span className="input-icon">👤</span>
+                {/* <span className="input-icon">👤</span> */}
                 <input
                   type="text"
                   className="form-input"
@@ -84,7 +84,7 @@ const AdminLogin = () => {
             <div className="form-group">
               <label className="form-label">Password</label>
               <div className="input-wrapper">
-                <span className="input-icon">🔒</span>
+                {/* <span className="input-icon">🔒</span> */}
                 <input
                   type={showPassword ? "text" : "password"}
                   className="form-input"
