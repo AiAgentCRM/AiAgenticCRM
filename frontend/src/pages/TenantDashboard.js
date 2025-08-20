@@ -991,7 +991,7 @@ const TenantDashboard = () => {
                         >
                           <div className="action-icon">🧠</div>
                           <h5 className="action-title">Knowledge Base</h5>
-                          <p className="action-description">Manage AI knowledge</p>
+                          <p className="action-description">Edit AI knowledge base</p>
                           <button 
                             className="btn btn-action"
                             style={{
@@ -1006,11 +1006,11 @@ const TenantDashboard = () => {
                               fontSize: '0.9rem'
                             }}
                             onClick={() => {
-                              showInfo('Opening Knowledge Base...', { duration: 2000 });
+                              showInfo('Opening Knowledge Base Editor...', { duration: 2000 });
                               handleTabChange("knowledgebase");
                             }}
                           >
-                            Manage KB
+                            Edit KB
                           </button>
                         </div>
                       </div>

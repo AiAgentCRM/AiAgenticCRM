@@ -3,9 +3,9 @@
 
 // Detect if running locally and use appropriate API base
 const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-// Force production backend URL unless explicitly overridden via env
-const API_BASE = process.env.REACT_APP_API_BASE || "https://api.aiagenticcrm.com/api";
-export const SOCKET_URL = process.env.REACT_APP_SOCKET_URL || "https://api.aiagenticcrm.com";
+// Use local backend when running locally, production otherwise
+const API_BASE = process.env.REACT_APP_API_BASE || (isLocalhost ? "http://localhost:5000/api" : "https://api.aiagenticcrm.com/api");
+export const SOCKET_URL = process.env.REACT_APP_SOCKET_URL || (isLocalhost ? "http://localhost:5000" : "https://api.aiagenticcrm.com");
 
 // Log API configuration for debugging
 console.log(`API Configuration: isLocalhost=${isLocalhost}, API_BASE=${API_BASE}, SOCKET_URL=${SOCKET_URL}`);
@@ -345,11 +345,14 @@ export async function fetchKnowledgebase(tenantId) {
   return res.json();
 }
 
-export async function updateKnowledgebase(tenantId, content) {
+export async function updateKnowledgebase(tenantId, formData) {
   const res = await fetch(getTenantUrl(tenantId, "knowledgebase"), {
     method: "POST",
-    headers: getAuthHeaders(),
-    body: JSON.stringify({ content }),
+    headers: {
+      // Only include Authorization header, let browser set Content-Type for FormData
+      ...(localStorage.getItem("token") && { Authorization: `Bearer ${localStorage.getItem("token")}` }),
+    },
+    body: formData,
   });
   return res.json();
 }

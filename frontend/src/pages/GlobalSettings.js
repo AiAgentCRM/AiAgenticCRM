@@ -45,7 +45,7 @@ const GlobalSettings = ({ tenantId }) => {
   return (
     <div className="global-settings">
       {/* Header Section */}
-      <div className="settings-header">
+      {/* <div className="settings-header">
         <div className="header-content">
           <div className="header-left">
             <h1 className="page-title">Global Settings</h1>
@@ -68,10 +68,10 @@ const GlobalSettings = ({ tenantId }) => {
             </button>
           </div>
         </div>
-      </div>
+      </div> */}
 
       {/* Settings Navigation */}
-      <div className="settings-navigation">
+      {/* <div className="settings-navigation">
         {settingsTabs.map((tab) => (
           <button
             key={tab.id}
@@ -82,7 +82,7 @@ const GlobalSettings = ({ tenantId }) => {
             <span className="tab-label">{tab.label}</span>
           </button>
         ))}
-      </div>
+      </div> */}
 
       {/* Settings Content */}
       <div className="settings-content">

@@ -18,7 +18,6 @@ app.use(express.json());
 app.use("/api/leads", require("./routes/leads"));
 app.use("/api/messages", require("./routes/messages"));
 app.use("/api/reminders", require("./routes/reminders"));
-app.use("/api/knowledgebase", require("./routes/knowledgebase"));
 app.use("/api/settings", require("./routes/settings"));
 app.use("/api/whatsapp", whatsappRouter);
 

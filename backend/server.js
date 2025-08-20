@@ -12,6 +12,7 @@ const qrcode = require("qrcode-terminal");
 const { setTimeout: sleep } = require("timers/promises");
 const { google } = require("googleapis");
 const axios = require("axios");
+const multer = require("multer");
 const Settings = require("./models/Settings");
 const Lead = require("./models/Lead");
 const Knowledgebase = require("./models/Knowledgebase");
@@ -37,6 +38,87 @@ const io = new Server(server, {
     origin: "*",
     methods: ["GET", "POST"],
   },
+});
+
+// --- Multer Configuration for File Uploads ---
+// Create uploads directory if it doesn't exist
+const uploadsDir = path.join(__dirname, "uploads");
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+}
+
+// Configure multer for file uploads
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, uploadsDir);
+  },
+  filename: function (req, file, cb) {
+    // Generate unique filename with timestamp and original extension
+    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1E9);
+    const ext = path.extname(file.originalname);
+    cb(null, file.fieldname + "-" + uniqueSuffix + ext);
+  }
+});
+
+const upload = multer({ 
+  storage: storage,
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10MB limit
+  },
+  fileFilter: function (req, file, cb) {
+    // Allow common document types
+    const allowedTypes = [
+      "application/pdf",
+      "application/msword",
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "text/plain",
+      "application/rtf",
+      "text/csv",
+      "application/vnd.ms-excel",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    ];
+    
+    if (allowedTypes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error("Invalid file type. Only documents are allowed."), false);
+    }
+  }
+});
+
+// Add a specific multer instance for the knowledgebase route that handles both file and form data
+const knowledgebaseUpload = multer({
+  storage: storage,
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10MB limit
+  },
+  fileFilter: function (req, file, cb) {
+    console.log("Multer fileFilter called with file:", file);
+    if (file) {
+      // Allow common document types
+      const allowedTypes = [
+        "application/pdf",
+        "application/msword",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "text/plain",
+        "application/rtf",
+        "text/csv",
+        "application/vnd.ms-excel",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+      ];
+      
+      if (allowedTypes.includes(file.mimetype)) {
+        console.log("File type allowed:", file.mimetype);
+        cb(null, true);
+      } else {
+        console.log("File type not allowed:", file.mimetype);
+        cb(new Error("Invalid file type. Only documents are allowed."), false);
+      }
+    } else {
+      console.log("No file provided, allowing form data only");
+      cb(null, true); // No file, just form data
+    }
+  }
 });
 
 // --- Socket.IO connection logic ---
@@ -175,7 +257,8 @@ app.use(cors({
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
-app.use(express.json());
+// Only parse JSON for specific routes that need it
+// app.use(express.json()); // Removed global JSON parsing to avoid conflicts with FormData
 
 // Root route
 app.get("/", (req, res) => {
@@ -262,6 +345,16 @@ const connectDB = async () => {
     console.log("💡 To fix MongoDB: Whitelist your IP in MongoDB Atlas");
   }
 })();
+
+// Helper function to add JSON parsing to specific routes
+function withJsonParsing(handler) {
+  return (req, res, next) => {
+    express.json()(req, res, (err) => {
+      if (err) return next(err);
+      handler(req, res, next);
+    });
+  };
+}
 
 // JWT Auth Middleware
 function authenticateToken(req, res, next) {
@@ -363,7 +456,7 @@ app.get("/api/plans", async (req, res) => {
   }
 });
 
-app.post("/api/admin/plans", authenticateAdmin, requirePermission('manage_plans'), async (req, res) => {
+app.post("/api/admin/plans", authenticateAdmin, requirePermission('manage_plans'), withJsonParsing(async (req, res) => {
   try {
     const {
       planId,
@@ -400,7 +493,7 @@ app.post("/api/admin/plans", authenticateAdmin, requirePermission('manage_plans'
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
-});
+}));
 
 // Get tenant usage and plan info
 app.get(
@@ -486,7 +579,7 @@ app.post(
 );
 
 // Register new business (pending approval) - Updated with plan selection
-app.post("/api/admin/register", async (req, res) => {
+app.post("/api/admin/register", withJsonParsing(async (req, res) => {
   try {
     const { businessName, ownerName, email, password, subscriptionPlan } = req.body;
     const existingTenant = await Tenant.findOne({ email });
@@ -531,9 +624,9 @@ app.post("/api/admin/register", async (req, res) => {
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
-});
+}));
 // Login for business owner (tenant login)
-app.post("/api/admin/login", async (req, res) => {
+app.post("/api/admin/login", withJsonParsing(async (req, res) => {
   try {
     const { email, password } = req.body;
     const tenant = await Tenant.findOne({ email });
@@ -559,10 +652,10 @@ app.post("/api/admin/login", async (req, res) => {
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
-});
+}));
 
 // Admin Authentication Routes
-app.post("/api/admin/auth/login", async (req, res) => {
+app.post("/api/admin/auth/login", withJsonParsing(async (req, res) => {
   try {
     const { username, password } = req.body;
     
@@ -632,7 +725,7 @@ app.post("/api/admin/auth/login", async (req, res) => {
     console.error("Admin login error:", error);
     res.status(500).json({ error: "Internal server error" });
   }
-});
+}));
 
 // Admin logout (optional - for server-side session management)
 app.post("/api/admin/auth/logout", authenticateAdmin, async (req, res) => {
@@ -666,7 +759,7 @@ app.get("/api/admin/auth/profile", authenticateAdmin, async (req, res) => {
 });
 
 // Create initial admin account (for first-time setup)
-app.post("/api/admin/auth/setup", async (req, res) => {
+app.post("/api/admin/auth/setup", withJsonParsing(async (req, res) => {
   try {
     // Check if any admin already exists
     const adminCount = await Admin.countDocuments();
@@ -718,7 +811,7 @@ app.post("/api/admin/auth/setup", async (req, res) => {
     console.error("Admin setup error:", error);
     res.status(500).json({ error: "Failed to create admin account" });
   }
-});
+}));
 
 // ===== NOTIFICATION MANAGEMENT ROUTES =====
 
@@ -1144,7 +1237,7 @@ app.post(
   "/api/:tenantId/settings",
   authenticateToken,
   tenantMiddleware,
-  async (req, res) => {
+  withJsonParsing(async (req, res) => {
     let settings = await Settings.findOne({ tenantId: req.tenantId });
     if (!settings) settings = new Settings({ tenantId: req.tenantId });
     const {
@@ -1174,33 +1267,114 @@ app.post(
     await settings.save();
     res.status(201).json(settings);
   }
-);
+));
 app.get(
   "/api/:tenantId/knowledgebase",
   authenticateToken,
   tenantMiddleware,
   async (req, res) => {
     const kb = await Knowledgebase.findOne({ tenantId: req.tenantId });
-    res.json(kb || { content: "" });
+    res.json(kb || { organizationName: "", content: "", knowledgeSources: [], uploadDocument: "" });
   }
 );
 app.post(
   "/api/:tenantId/knowledgebase",
   authenticateToken,
   tenantMiddleware,
+  (req, res, next) => {
+    knowledgebaseUpload.single("uploadDocument")(req, res, (err) => {
+      if (err instanceof multer.MulterError) {
+        console.error("Multer error:", err);
+        return res.status(400).json({ error: "File upload error: " + err.message });
+      } else if (err) {
+        console.error("Other error:", err);
+        return res.status(400).json({ error: "Upload error: " + err.message });
+      }
+      next();
+    });
+  },
   async (req, res) => {
-    const { content } = req.body;
-    let kb = await Knowledgebase.findOne({ tenantId: req.tenantId });
-    if (kb) {
-      kb.content = content;
-      kb.updatedAt = new Date();
-    } else {
-      kb = new Knowledgebase({ tenantId: req.tenantId, content });
+    try {
+      // Debug logging
+      console.log("Knowledgebase POST request received");
+      console.log("req.body:", req.body);
+      console.log("req.file:", req.file);
+      console.log("req.headers:", req.headers);
+      
+      // Check if req.body exists and has the required fields
+      if (!req.body) {
+        console.error("req.body is undefined - multer parsing issue");
+        return res.status(400).json({ error: "Form data parsing failed. Please check your request." });
+      }
+      
+      const { organizationName, content, knowledgeSources } = req.body;
+      
+      if (!organizationName || !content) {
+        console.error("Missing required fields:", { organizationName: !!organizationName, content: !!content });
+        return res.status(400).json({ error: "Organization name and content are required" });
+      }
+      
+      // Parse knowledgeSources from JSON string if it's a string
+      let parsedKnowledgeSources = [];
+      if (knowledgeSources) {
+        try {
+          parsedKnowledgeSources = typeof knowledgeSources === 'string' 
+            ? JSON.parse(knowledgeSources) 
+            : knowledgeSources;
+        } catch (error) {
+          console.error("Error parsing knowledgeSources:", error);
+          parsedKnowledgeSources = [];
+        }
+      }
+      
+      let uploadDocument = "";
+      if (req.file) {
+        // File was uploaded, store the file path
+        uploadDocument = req.file.filename;
+      } else if (req.body.uploadDocument) {
+        // Text input was provided (fallback for existing functionality)
+        uploadDocument = req.body.uploadDocument;
+      }
+      
+      let kb = await Knowledgebase.findOne({ tenantId: req.tenantId });
+      if (kb) {
+        kb.organizationName = organizationName;
+        kb.content = content;
+        kb.knowledgeSources = parsedKnowledgeSources;
+        kb.uploadDocument = uploadDocument;
+        kb.updatedAt = new Date();
+      } else {
+        kb = new Knowledgebase({ 
+          tenantId: req.tenantId, 
+          organizationName, 
+          content, 
+          knowledgeSources: parsedKnowledgeSources,
+          uploadDocument: uploadDocument
+        });
+      }
+      await kb.save();
+      res.status(201).json(kb);
+    } catch (error) {
+      console.error("Error saving knowledgebase:", error);
+      res.status(500).json({ error: "Failed to save knowledgebase" });
     }
-    await kb.save();
-    res.status(201).json(kb);
   }
 );
+
+// Serve uploaded files
+app.get("/uploads/:filename", (req, res) => {
+  const filename = req.params.filename;
+  const filePath = path.join(uploadsDir, filename);
+  
+  // Check if file exists
+  if (!fs.existsSync(filePath)) {
+    return res.status(404).json({ error: "File not found" });
+  }
+  
+  // Send file
+  res.sendFile(filePath);
+});
+
 app.get(
   "/api/:tenantId/whatsapp/qr",
   authenticateToken,
@@ -1384,11 +1558,7 @@ app.post(
     }
   });
 
-  // List all tenants
-  app.get("/api/admin/tenants", authenticateAdmin, requirePermission('manage_tenants'), async (req, res) => {
-    const tenants = await Tenant.find({});
-    res.json(tenants);
-  });
+  // List all tenants (duplicate removed - using the one above that filters for isActive: true)
 
   // Get stats for a tenant
   app.get("/api/admin/tenants/:tenantId/stats", authenticateAdmin, requirePermission('view_analytics'), async (req, res) => {
