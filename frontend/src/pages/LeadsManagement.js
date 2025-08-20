@@ -28,7 +28,7 @@ const LeadsManagement = ({ tenantId }) => {
   return (
     <div className="leads-management">
       {/* Header Section */}
-      <div className="leads-header">
+      {/* <div className="leads-header">
         <div className="header-content">
           <div className="header-left">
             <h1 className="page-title">Leads Management</h1>
@@ -45,10 +45,10 @@ const LeadsManagement = ({ tenantId }) => {
             </button>
           </div>
         </div>
-      </div>
+      </div> */}
 
       {/* View Tabs */}
-      <div className="view-tabs">
+      {/* <div className="view-tabs">
         {views.map((view) => (
           <button
             key={view.id}
@@ -59,10 +59,10 @@ const LeadsManagement = ({ tenantId }) => {
             <span className="tab-label">{view.label}</span>
           </button>
         ))}
-      </div>
+      </div> */}
 
       {/* Filters and Search */}
-      <div className="filters-section">
+      {/* <div className="filters-section">
         <div className="filters-left">
           <div className="search-box">
             <span className="search-icon">🔍</span>
@@ -96,7 +96,7 @@ const LeadsManagement = ({ tenantId }) => {
             Export
           </button>
         </div>
-      </div>
+      </div> */}
 
       {/* Stats Cards */}
       <div className="stats-grid">
