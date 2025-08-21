@@ -170,6 +170,16 @@ const LeadsTable = ({ tenantId }) => {
     setLeads((prev) => prev.map(l => l._id === lead._id ? { ...l, detectedStage: newStage } : l));
   };
 
+  const handleAiReplyToggle = async (lead, enabled) => {
+    try {
+      await updateLead(tenantId, lead._id, { aiReplyEnabled: enabled });
+      setLeads((prev) => prev.map(l => l._id === lead._id ? { ...l, aiReplyEnabled: enabled } : l));
+      console.log(`AI Reply ${enabled ? 'enabled' : 'disabled'} for lead ${lead.phone}`);
+    } catch (error) {
+      console.error('Error updating AI reply setting:', error);
+    }
+  };
+
   // Add manual refresh handler
   const handleManualRefresh = async () => {
     setLoading(true);
@@ -297,6 +307,7 @@ const LeadsTable = ({ tenantId }) => {
               <th>Initial Msg Sent</th>
               <th>Initial Msg Time</th>
               <th>Follow-up Status</th>
+              <th>AI Reply</th>
               <th>Notes</th>
               <th>Actions</th>
             </tr>
@@ -362,6 +373,21 @@ const LeadsTable = ({ tenantId }) => {
                       ) : (
                         <span className="text-muted">No follow-ups configured</span>
                       )}
+                    </div>
+                  </td>
+                  <td>
+                    <div className="ai-reply-toggle-container">
+                      <label className="toggle-switch">
+                        <input
+                          type="checkbox"
+                          checked={lead.aiReplyEnabled || false}
+                          onChange={(e) => handleAiReplyToggle(lead, e.target.checked)}
+                        />
+                        <span className="toggle-slider"></span>
+                      </label>
+                      <small className="toggle-label">
+                        {lead.aiReplyEnabled ? "Enabled" : "Disabled"}
+                      </small>
                     </div>
                   </td>
                   <td style={{ maxWidth: 120, whiteSpace: "pre-wrap" }}>{lead.notes}</td>

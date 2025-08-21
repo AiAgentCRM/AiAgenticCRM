@@ -28,6 +28,7 @@ const leadSchema = new mongoose.Schema({
   },
   notes: { type: String },
   autoFollowupEnabled: { type: Boolean, default: false },
+  aiReplyEnabled: { type: Boolean, default: false },
   detectedStage: { type: String, default: "" },
   lastRespondedAt: { type: Date },
 });

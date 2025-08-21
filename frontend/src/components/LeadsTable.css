@@ -175,6 +175,73 @@
   background: linear-gradient(135deg, #dc2626, #b91c1c);
 }
 
+/* AI Reply Toggle Styling */
+.ai-reply-toggle-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  min-width: 120px;
+}
+
+.toggle-switch {
+  position: relative;
+  display: inline-block;
+  width: 50px;
+  height: 24px;
+}
+
+.toggle-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.toggle-slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #ccc;
+  transition: 0.3s;
+  border-radius: 24px;
+}
+
+.toggle-slider:before {
+  position: absolute;
+  content: "";
+  height: 18px;
+  width: 18px;
+  left: 3px;
+  bottom: 3px;
+  background-color: white;
+  transition: 0.3s;
+  border-radius: 50%;
+}
+
+.toggle-switch input:checked + .toggle-slider {
+  background: linear-gradient(135deg, #10b981, #059669);
+  box-shadow: 0 2px 4px rgba(16, 185, 129, 0.3);
+}
+
+.toggle-switch input:checked + .toggle-slider:before {
+  transform: translateX(26px);
+}
+
+.toggle-switch input:focus + .toggle-slider {
+  box-shadow: 0 0 1px #10b981;
+}
+
+.toggle-label {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
 /* Test Buttons Styling */
 .test-buttons-container {
   display: flex;
@@ -217,6 +284,28 @@
   }
   
   .followup-timestamp {
+    font-size: 0.7rem;
+  }
+  
+  .ai-reply-toggle-container {
+    min-width: 100px;
+  }
+  
+  .toggle-switch {
+    width: 40px;
+    height: 20px;
+  }
+  
+  .toggle-slider:before {
+    height: 14px;
+    width: 14px;
+  }
+  
+  .toggle-switch input:checked + .toggle-slider:before {
+    transform: translateX(20px);
+  }
+  
+  .toggle-label {
     font-size: 0.7rem;
   }
   

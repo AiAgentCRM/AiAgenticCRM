@@ -17,12 +17,14 @@ router.post("/", async (req, res) => {
 
 // PUT /api/leads/:id
 router.put("/:id", async (req, res) => {
-  const { notes, autoFollowupEnabled } = req.body;
+  const { notes, autoFollowupEnabled, aiReplyEnabled } = req.body;
   const lead = await Lead.findById(req.params.id);
   if (!lead) return res.status(404).json({ error: "Lead not found" });
   if (notes !== undefined) lead.notes = notes;
   if (autoFollowupEnabled !== undefined)
     lead.autoFollowupEnabled = autoFollowupEnabled;
+  if (aiReplyEnabled !== undefined)
+    lead.aiReplyEnabled = aiReplyEnabled;
   await lead.save();
   res.json(lead);
 });

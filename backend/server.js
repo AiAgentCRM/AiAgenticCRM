@@ -1174,7 +1174,7 @@ app.put(
   authenticateToken,
   tenantMiddleware,
   withJsonParsing(async (req, res) => {
-    const { notes, autoFollowupEnabled, detectedStage } = req.body;
+    const { notes, autoFollowupEnabled, detectedStage, aiReplyEnabled } = req.body;
     const lead = await Lead.findOne({
       _id: req.params.id,
       tenantId: req.tenantId,
@@ -1184,6 +1184,7 @@ app.put(
     if (autoFollowupEnabled !== undefined)
       lead.autoFollowupEnabled = autoFollowupEnabled;
     if (detectedStage !== undefined) lead.detectedStage = detectedStage;
+    if (aiReplyEnabled !== undefined) lead.aiReplyEnabled = aiReplyEnabled;
     await lead.save();
     res.json(lead);
   })
@@ -1901,6 +1902,14 @@ async function handleIncomingMessage(message, tenantId) {
     return;
   }
 
+  // Check if AI reply is enabled for this lead
+  const normalizedFrom = cleanPhoneNumber(message.from.replace(/@c\.us$/, ""));
+  const lead = await Lead.findOne({ tenantId, phone: normalizedFrom });
+  if (!lead || !lead.aiReplyEnabled) {
+    console.log(`[${tenantId}] AI reply disabled for lead ${normalizedFrom}, skipping AI reply`);
+    return;
+  }
+
   try {
     const aiReply = await getGroqReply(
       message.from,
@@ -1943,6 +1952,15 @@ async function handleIncomingMessage(message, tenantId) {
 }
 async function getGroqReply(userId, message, memory, systemPrompt) {
   try {
+    console.log(`🤖 [GROQ] Generating AI reply for message: "${message}"`);
+    console.log(`🤖 [GROQ] Using model: llama3-8b-8192`);
+    console.log(`🤖 [GROQ] Knowledge base length: ${memory ? memory.length : 0} characters`);
+    
+    if (!process.env.GROQ_API_KEY) {
+      console.error(`❌ [GROQ] GROQ_API_KEY environment variable not set`);
+      return null;
+    }
+    
     const response = await axios.post(
       "https://api.groq.com/openai/v1/chat/completions",
       {
@@ -1964,10 +1982,19 @@ async function getGroqReply(userId, message, memory, systemPrompt) {
           Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
           "Content-Type": "application/json",
         },
+        timeout: 30000, // 30 second timeout
       }
     );
-    return response.data.choices[0].message.content;
+    
+    const aiReply = response.data.choices[0].message.content;
+    console.log(`✅ [GROQ] Successfully generated AI reply: "${aiReply}"`);
+    return aiReply;
   } catch (error) {
+    console.error(`❌ [GROQ] Error generating AI reply:`, error.message);
+    if (error.response) {
+      console.error(`❌ [GROQ] Response status: ${error.response.status}`);
+      console.error(`❌ [GROQ] Response data:`, error.response.data);
+    }
     return null;
   }
 }
@@ -2546,6 +2573,24 @@ app.get("/api/:tenantId/whatsapp/status", authenticateToken, tenantMiddleware, a
             }
             // Continue with AI/lead logic
             console.log(`[INCOMING] Proceeding with AI/lead logic for tenantId=${tenantId}`);
+            
+            // Check conversation limit before proceeding
+            console.log(`[${tenantId}] 📊 Current usage: aiConversations=${tenant.monthlyUsage?.aiConversations || 0}, limit=${plan.conversationLimit}`);
+            if (!tenant.monthlyUsage) {
+              console.log(`[${tenantId}] ⚠️ monthlyUsage is undefined, initializing...`);
+              tenant.monthlyUsage = {
+                initialMessagesSent: 0,
+                aiConversations: 0,
+                followupMessagesSent: 0,
+                resetDate: new Date(),
+              };
+            }
+            if (tenant.monthlyUsage.aiConversations >= plan.conversationLimit) {
+              console.log(`[${tenantId}] ❌ AI conversation limit reached (${tenant.monthlyUsage.aiConversations}/${plan.conversationLimit})`);
+              return;
+            }
+            console.log(`[${tenantId}] ✅ Conversation limit check passed (${tenant.monthlyUsage.aiConversations}/${plan.conversationLimit})`);
+            
             let leadStages = [];
             let knowledgebase = null;
             let settings = null;
@@ -2596,12 +2641,12 @@ app.get("/api/:tenantId/whatsapp/status", authenticateToken, tenantMiddleware, a
                     io.to(tenantId).emit('lead-stage-changed', {
                       leadId: lead._id,
                       phone: lead.phone,
-                      oldStage: previousStage,
+                      oldStage: lead.detectedStage !== leadStage?.stage ? lead.detectedStage : undefined,
                       newStage: lead.detectedStage,
                       message: msg.body,
                       timestamp: new Date()
                     });
-                    console.log(`🔌 Stage change event emitted: ${previousStage || 'None'} → ${lead.detectedStage}`);
+                    console.log(`🔌 Stage change event emitted: ${lead.detectedStage !== leadStage?.stage ? lead.detectedStage : 'None'} → ${lead.detectedStage}`);
                   }
                 } else {
                   console.log(`🔌 Cannot emit lead update: io=${!!io}, tenantId=${tenantId}`);
@@ -2613,21 +2658,82 @@ app.get("/api/:tenantId/whatsapp/status", authenticateToken, tenantMiddleware, a
             // Use the correct knowledgebase for AI reply (send only ONCE)
             try {
               if (knowledgebase && knowledgebase.content) {
+                // Check if AI reply is enabled for this lead
+                if (!lead.aiReplyEnabled) {
+                  console.log(`[${tenantId}] ⏭️ AI reply disabled for lead ${lead.phone}, skipping AI reply`);
+                  return;
+                }
+                
+                console.log(`[${tenantId}] 🤖 Attempting AI reply for message: "${msg.body}"`);
+                
+                // Handle different knowledgebase content formats
+                let knowledgeContent = knowledgebase.content;
+                if (typeof knowledgeContent === 'object') {
+                  // If content is an object, convert to string
+                  knowledgeContent = JSON.stringify(knowledgeContent);
+                  console.log(`[${tenantId}] 📚 Knowledgebase content is object, converted to string`);
+                }
+                
+                console.log(`[${tenantId}] 📚 Using knowledgebase content: ${knowledgeContent.substring(0, 100)}...`);
+                
+                // Check WhatsApp client state before sending
+                console.log(`[${tenantId}] 📱 WhatsApp client state check:`);
+                console.log(`  - client exists: ${!!client}`);
+                console.log(`  - client.info exists: ${!!client.info}`);
+                if (client.info) {
+                  console.log(`  - client.info.wid: ${client.info.wid?._serialized || 'undefined'}`);
+                  console.log(`  - client.info.pushname: ${client.info.pushname || 'undefined'}`);
+                }
+                
+                if (!client.info) {
+                  console.log(`[${tenantId}] ❌ WhatsApp client not ready, cannot send AI reply`);
+                  return;
+                }
+                
+                console.log(`[${tenantId}] ✅ WhatsApp client ready, proceeding with AI reply`);
+                
+                console.log(`[${tenantId}] 🔑 GROQ API Key check: ${process.env.GROQ_API_KEY ? 'Set' : 'NOT SET'}`);
+                if (!process.env.GROQ_API_KEY) {
+                  console.log(`[${tenantId}] ❌ GROQ_API_KEY environment variable not set, cannot generate AI reply`);
+                  return;
+                }
+                
                 const aiReply = await getGroqReply(
                   msg.from,
                   msg.body,
-                  knowledgebase.content,
+                  knowledgeContent,
                   settings?.systemPrompt
                 );
+                
                 if (aiReply) {
-                  await client.sendMessage(msg.from, aiReply);
-                  console.log(
-                    `[${tenantId}] Sent AI reply to ${msg.from} at ${new Date().toISOString()}`
-                  );
+                  console.log(`[${tenantId}] 🤖 AI generated reply: "${aiReply}"`);
+                  console.log(`[${tenantId}] 📱 Attempting to send message to ${msg.from}`);
+                  
+                  try {
+                    await client.sendMessage(msg.from, aiReply);
+                    console.log(
+                      `[${tenantId}] ✅ Sent AI reply to ${msg.from} at ${new Date().toISOString()}`
+                    );
+                    
+                    // Update conversation usage
+                    try {
+                      tenant.monthlyUsage.aiConversations = (tenant.monthlyUsage.aiConversations || 0) + 1;
+                      await tenant.save();
+                      console.log(`[${tenantId}] 📊 Updated conversation usage: ${tenant.monthlyUsage.aiConversations}`);
+                    } catch (usageErr) {
+                      console.error(`[${tenantId}] ❌ Failed to update conversation usage:`, usageErr.message);
+                    }
+                  } catch (sendErr) {
+                    console.error(`[${tenantId}] ❌ Failed to send WhatsApp message:`, sendErr.message);
+                  }
+                } else {
+                  console.log(`[${tenantId}] ⚠️ AI reply generation failed - no response received`);
                 }
+              } else {
+                console.log(`[${tenantId}] ⚠️ No knowledgebase content found, skipping AI reply`);
               }
             } catch (err) {
-              console.error(`[${tenantId}] Error in AI reply:`, err.message);
+              console.error(`[${tenantId}] ❌ Error in AI reply:`, err.message);
             }
             // Do not send any other reply or initial message here
             // await handleIncomingMessage(msg, tenantId); // REMOVED
@@ -2828,6 +2934,37 @@ app.post("/api/:tenantId/test-followups", authenticateToken, tenantMiddleware, w
     res.status(500).json({ error: error.message });
   }
 }));
+
+// Test endpoint to test GROQ API
+app.post("/api/test-groq", async (req, res) => {
+  try {
+    const { message, knowledgebase } = req.body;
+    
+    if (!process.env.GROQ_API_KEY) {
+      return res.status(500).json({ error: "GROQ_API_KEY not set" });
+    }
+    
+    console.log(`[TEST] Testing GROQ API with message: "${message}"`);
+    
+    const aiReply = await getGroqReply(
+      "test_user",
+      message || "Hello",
+      knowledgebase || "You are a helpful assistant.",
+      "You are a helpful customer service representative."
+    );
+    
+    res.json({ 
+      success: true, 
+      aiReply,
+      apiKeySet: !!process.env.GROQ_API_KEY,
+      timestamp: new Date()
+    });
+    
+  } catch (error) {
+    console.error("[TEST] Error testing GROQ API:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
 
 
 
