@@ -1,29 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { fetchSettings, updateSettings } from "../services/api";
 
-const sampleLeadStages = [
-  {
-    stage: "INITIAL_CONTACT",
-    description: "First contact - gathering basic information",
-    keywords: ["hello", "hi", "interested"],
-  },
-  {
-    stage: "SERVICE_INQUIRY",
-    description: "Asking about specific services and pricing",
-    keywords: ["website", "app", "cloud", "services", "pricing"],
-  },
-  {
-    stage: "BUDGET_DISCUSSION",
-    description: "Discussing budget and financial considerations",
-    keywords: ["budget", "cost", "price", "expensive", "cheap"],
-  },
-  {
-    stage: "MEETING_REQUEST",
-    description: "Requesting a meeting or consultation",
-    keywords: ["meet", "call", "demo", "presentation"],
-  },
-];
-
 const GlobalMessagingSettings = ({ tenantId }) => {
   const [initialMessage, setInitialMessage] = useState("");
   const [followupMessage, setFollowupMessage] = useState("");
@@ -44,7 +21,6 @@ const GlobalMessagingSettings = ({ tenantId }) => {
   const [fetchIntervalMinutes, setFetchIntervalMinutes] = useState(3);
   const [globalAutoFollowupEnabled, setGlobalAutoFollowupEnabled] =
     useState(false);
-  const [leadStages, setLeadStages] = useState([]);
   const [autoFollowupForIncoming, setAutoFollowupForIncoming] = useState(false);
 
   useEffect(() => {
@@ -67,7 +43,6 @@ const GlobalMessagingSettings = ({ tenantId }) => {
         );
         setFetchIntervalMinutes(settings.fetchIntervalMinutes || 3);
         setGlobalAutoFollowupEnabled(!!settings.globalAutoFollowupEnabled);
-        setLeadStages(settings.leadStages && settings.leadStages.length > 0 ? settings.leadStages : sampleLeadStages);
         setAutoFollowupForIncoming(!!settings.autoFollowupForIncoming);
         setLoading(false);
       });
@@ -82,28 +57,6 @@ const GlobalMessagingSettings = ({ tenantId }) => {
   const handleFollowupDelayChange = (idx, value) => {
     setFollowupDelays((prev) =>
       prev.map((d, i) => (i === idx ? Number(value) : d))
-    );
-  };
-
-  const handleAddStage = () => {
-    setLeadStages((prev) => [
-      ...prev,
-      { stage: "", description: "", keywords: [] },
-    ]);
-  };
-  const handleRemoveStage = (idx) => {
-    setLeadStages((prev) => prev.filter((_, i) => i !== idx));
-  };
-  const handleStageChange = (idx, field, value) => {
-    setLeadStages((prev) =>
-      prev.map((stage, i) =>
-        i === idx
-          ? {
-              ...stage,
-              [field]: field === "keywords" ? value.split(",").map((k) => k.trim()).filter(Boolean) : value,
-            }
-          : stage
-      )
     );
   };
 
@@ -123,7 +76,6 @@ const GlobalMessagingSettings = ({ tenantId }) => {
       followupDelays,
       fetchIntervalMinutes,
       globalAutoFollowupEnabled,
-      leadStages,
       autoFollowupForIncoming,
     });
     setMessage("Global messaging settings updated!");
@@ -263,49 +215,6 @@ const GlobalMessagingSettings = ({ tenantId }) => {
           Enable Auto Follow-up for Incoming Message Leads
         </label>
       </div>
-      <hr />
-      <h4>Lead Stage Detection (Keywords)</h4>
-      <p className="text-muted">Set up the stages of your sales conversation. For each stage, enter a name, a short description, and words/phrases (comma separated) that customers might use for this stage. Example: For "Service Inquiry" stage, keywords could be: website, app, pricing, services.</p>
-      {leadStages.map((stage, idx) => (
-        <div key={idx} className="border rounded p-3 mb-2 bg-light">
-          <div className="row">
-            <div className="col-md-3 mb-2">
-              <label>Stage Name</label>
-              <input
-                type="text"
-                className="form-control"
-                value={stage.stage}
-                onChange={(e) => handleStageChange(idx, "stage", e.target.value)}
-                placeholder="e.g. INITIAL_CONTACT"
-              />
-            </div>
-            <div className="col-md-5 mb-2">
-              <label>Description</label>
-              <input
-                type="text"
-                className="form-control"
-                value={stage.description}
-                onChange={(e) => handleStageChange(idx, "description", e.target.value)}
-                placeholder="e.g. First contact - gathering info"
-              />
-            </div>
-            <div className="col-md-3 mb-2">
-              <label>Keywords (comma separated)</label>
-              <input
-                type="text"
-                className="form-control"
-                value={stage.keywords.join(", ")}
-                onChange={(e) => handleStageChange(idx, "keywords", e.target.value)}
-                placeholder="e.g. hello, hi, interested"
-              />
-            </div>
-            <div className="col-md-1 d-flex align-items-end mb-2">
-              <button className="btn btn-danger" onClick={() => handleRemoveStage(idx)} title="Remove Stage">&times;</button>
-            </div>
-          </div>
-        </div>
-      ))}
-      <button className="btn btn-secondary mb-3" onClick={handleAddStage} type="button">+ Add Stage</button>
       <button
         className="btn btn-primary"
         onClick={handleSave}

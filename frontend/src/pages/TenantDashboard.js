@@ -6,6 +6,7 @@ import WhatsAppConnect from "../components/WhatsAppConnect";
 import WhatsAppLauncher from "../components/WhatsAppLauncher";
 // Import new page components
 import LeadsManagement from "./LeadsManagement";
+import LeadStageDetection from "../components/LeadStageDetection";
 import GlobalSettings from "./GlobalSettings";
 import KnowledgeBase from "./KnowledgeBase";
 import GoogleSheets from "./GoogleSheets";
@@ -879,10 +880,9 @@ const TenantDashboard = () => {
                           display: 'flex',
                           flexDirection: 'row',
                           gap: '20px',
-                          overflowX: 'auto',
                           padding: '10px 0',
-                          flexWrap: 'nowrap',
-                          justifyContent: 'space-between',
+                          flexWrap: 'wrap',
+                          justifyContent: 'flex-start',
                           alignItems: 'stretch',
                           width: '100%',
                           maxWidth: '100%',
@@ -898,10 +898,10 @@ const TenantDashboard = () => {
                             textAlign: 'center',
                             border: '1px solid #e5e7eb',
                             transition: 'all 0.3s ease',
-                            flex: '0 0 auto',
+                            flex: '0 0 calc(25% - 15px)',
                             minWidth: '250px',
-                            maxWidth: '280px',
-                            width: '250px'
+                            maxWidth: 'calc(25% - 15px)',
+                            width: 'calc(25% - 15px)'
                           }}
                         >
                           <div className="action-icon">👥</div>
@@ -937,10 +937,10 @@ const TenantDashboard = () => {
                             textAlign: 'center',
                             border: '1px solid #e5e7eb',
                             transition: 'all 0.3s ease',
-                            flex: '0 0 auto',
+                            flex: '0 0 calc(25% - 15px)',
                             minWidth: '250px',
-                            maxWidth: '280px',
-                            width: '250px'
+                            maxWidth: 'calc(25% - 15px)',
+                            width: 'calc(25% - 15px)'
                           }}
                         >
                           <div className="action-icon">📱</div>
@@ -976,10 +976,10 @@ const TenantDashboard = () => {
                             textAlign: 'center',
                             border: '1px solid #e5e7eb',
                             transition: 'all 0.3s ease',
-                            flex: '0 0 auto',
+                            flex: '0 0 calc(25% - 15px)',
                             minWidth: '250px',
-                            maxWidth: '280px',
-                            width: '250px'
+                            maxWidth: 'calc(25% - 15px)',
+                            width: 'calc(25% - 15px)'
                           }}
                         >
                           <div className="action-icon">🔧</div>
@@ -1015,10 +1015,10 @@ const TenantDashboard = () => {
                             textAlign: 'center',
                             border: '1px solid #e5e7eb',
                             transition: 'all 0.3s ease',
-                            flex: '0 0 auto',
+                            flex: '0 0 calc(25% - 15px)',
                             minWidth: '250px',
-                            maxWidth: '280px',
-                            width: '250px'
+                            maxWidth: 'calc(25% - 15px)',
+                            width: 'calc(25% - 15px)'
                           }}
                         >
                           <div className="action-icon">🧠</div>
@@ -1045,6 +1045,45 @@ const TenantDashboard = () => {
                             Edit KB
                           </button>
                         </div>
+                        <div 
+                          className="action-card"
+                          style={{
+                            background: 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)',
+                            borderRadius: '16px',
+                            padding: '24px',
+                            textAlign: 'center',
+                            border: '1px solid #e5e7eb',
+                            transition: 'all 0.3s ease',
+                            flex: '0 0 calc(25% - 15px)',
+                            minWidth: '250px',
+                            maxWidth: 'calc(25% - 15px)',
+                            width: 'calc(25% - 15px)'
+                          }}
+                        >
+                          <div className="action-icon">🎯</div>
+                          <h5 className="action-title">Lead Stage Detection</h5>
+                          <p className="action-description">Configure lead conversation stages</p>
+                          <button 
+                            className="btn btn-action"
+                            style={{
+                              background: 'linear-gradient(135deg, #667eea, #764ba2)',
+                              color: 'white',
+                              border: '2px solid #667eea',
+                              padding: '10px 20px',
+                              borderRadius: '8px',
+                              fontWeight: '600',
+                              cursor: 'pointer',
+                              transition: 'all 0.3s ease',
+                              fontSize: '0.9rem'
+                            }}
+                            onClick={() => {
+                              showInfo('Opening Lead Stage Detection...', { duration: 2000 });
+                              handleTabChange("leadstages");
+                            }}
+                          >
+                            Configure Stages
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -1058,6 +1097,10 @@ const TenantDashboard = () => {
             <div className="tab-content">
               {activeTab === "leads" && (
                 <LeadsManagement tenantId={tenantId} />
+              )}
+
+              {activeTab === "leadstages" && (
+                <LeadStageDetection tenantId={tenantId} />
               )}
 
               {activeTab === "settings" && (

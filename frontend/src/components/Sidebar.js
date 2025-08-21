@@ -44,6 +44,12 @@ const Sidebar = ({ activeTab, setActiveTab, onLogout, isMobileOpen, isSidebarCol
       description: "Manage your leads and contacts",
     },
     {
+      id: "leadstages",
+      label: "Lead Stage Detection",
+      icon: "🎯",
+      description: "Configure lead conversation stage detection",
+    },
+    {
       id: "settings",
       label: "Global Settings",
       icon: "🔧",
