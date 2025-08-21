@@ -548,7 +548,7 @@ app.post(
   "/api/:tenantId/subscription",
   authenticateToken,
   tenantMiddleware,
-  async (req, res) => {
+  withJsonParsing(async (req, res) => {
     try {
       const { subscriptionPlan } = req.body;
       const tenant = await Tenant.findOne({ tenantId: req.tenantId });
@@ -575,7 +575,7 @@ app.post(
     } catch (error) {
       res.status(500).json({ error: error.message });
     }
-  }
+  })
 );
 
 // Register new business (pending approval) - Updated with plan selection
@@ -828,7 +828,7 @@ app.get("/api/admin/notifications", authenticateAdmin, requirePermission('system
 });
 
 // Create new notification
-app.post("/api/admin/notifications", authenticateAdmin, requirePermission('system_settings'), async (req, res) => {
+app.post("/api/admin/notifications", authenticateAdmin, requirePermission('system_settings'), withJsonParsing(async (req, res) => {
   try {
     const notificationData = {
       ...req.body,
@@ -845,10 +845,10 @@ app.post("/api/admin/notifications", authenticateAdmin, requirePermission('syste
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
-});
+}));
 
 // Update notification
-app.put("/api/admin/notifications/:id", authenticateAdmin, requirePermission('system_settings'), async (req, res) => {
+app.put("/api/admin/notifications/:id", authenticateAdmin, requirePermission('system_settings'), withJsonParsing(async (req, res) => {
   try {
     const notification = await Notification.findByIdAndUpdate(
       req.params.id,
@@ -864,7 +864,7 @@ app.put("/api/admin/notifications/:id", authenticateAdmin, requirePermission('sy
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
-});
+}));
 
 // Delete notification
 app.delete("/api/admin/notifications/:id", authenticateAdmin, requirePermission('system_settings'), async (req, res) => {
@@ -896,7 +896,7 @@ app.get("/api/admin/website-settings", authenticateAdmin, requirePermission('sys
 });
 
 // Update website settings
-app.put("/api/admin/website-settings", authenticateAdmin, requirePermission('system_settings'), async (req, res) => {
+app.put("/api/admin/website-settings", authenticateAdmin, requirePermission('system_settings'), withJsonParsing(async (req, res) => {
   try {
     let settings = await WebsiteSettings.findOne();
     if (!settings) {
@@ -913,7 +913,7 @@ app.put("/api/admin/website-settings", authenticateAdmin, requirePermission('sys
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
-});
+}));
 
 // ===== SYSTEM SETTINGS ROUTES =====
 
@@ -932,7 +932,7 @@ app.get("/api/admin/system-settings", authenticateAdmin, requirePermission('syst
 });
 
 // Update system settings
-app.put("/api/admin/system-settings", authenticateAdmin, requirePermission('system_settings'), async (req, res) => {
+app.put("/api/admin/system-settings", authenticateAdmin, requirePermission('system_settings'), withJsonParsing(async (req, res) => {
   try {
     let settings = await SystemSettings.findOne();
     if (!settings) {
@@ -949,7 +949,7 @@ app.put("/api/admin/system-settings", authenticateAdmin, requirePermission('syst
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
-});
+}));
 
 // ===== EMAIL SETTINGS ROUTES =====
 
@@ -992,7 +992,7 @@ app.get("/api/admin/email-settings", authenticateAdmin, requirePermission('syste
 });
 
 // Update email settings (preserve password if not provided)
-app.put("/api/admin/email-settings", authenticateAdmin, requirePermission('system_settings'), async (req, res) => {
+app.put("/api/admin/email-settings", authenticateAdmin, requirePermission('system_settings'), withJsonParsing(async (req, res) => {
   try {
     let settings = await EmailSettings.findOne().select('+smtp.password');
     if (!settings) {
@@ -1026,10 +1026,10 @@ app.put("/api/admin/email-settings", authenticateAdmin, requirePermission('syste
   } catch (error) {
     return res.status(500).json({ error: error.message });
   }
-});
+}));
 
 // Test SMTP connection
-app.post("/api/admin/email-settings/test", authenticateAdmin, requirePermission('system_settings'), async (req, res) => {
+app.post("/api/admin/email-settings/test", authenticateAdmin, requirePermission('system_settings'), withJsonParsing(async (req, res) => {
   try {
     const { smtp } = req.body || {};
     if (!smtp || !smtp.host || !smtp.port || !smtp.username || !smtp.password) {
@@ -1051,7 +1051,7 @@ app.post("/api/admin/email-settings/test", authenticateAdmin, requirePermission(
   } catch (error) {
     return res.status(500).json({ error: error.message || 'SMTP test failed' });
   }
-});
+}));
 
 // ===== PUBLIC ROUTES FOR FRONTEND =====
 
@@ -1173,7 +1173,7 @@ app.put(
   "/api/:tenantId/leads/:id",
   authenticateToken,
   tenantMiddleware,
-  async (req, res) => {
+  withJsonParsing(async (req, res) => {
     const { notes, autoFollowupEnabled, detectedStage } = req.body;
     const lead = await Lead.findOne({
       _id: req.params.id,
@@ -1186,7 +1186,7 @@ app.put(
     if (detectedStage !== undefined) lead.detectedStage = detectedStage;
     await lead.save();
     res.json(lead);
-  }
+  })
 );
 // --- Always provide default lead stages in settings API ---
 const DEFAULT_LEAD_STAGES = [
@@ -1482,7 +1482,7 @@ app.post(
   "/api/:tenantId/sheets-config",
   authenticateToken,
   tenantMiddleware,
-  async (req, res) => {
+  withJsonParsing(async (req, res) => {
     try {
       const { googleSheetId, googleCredentials } = req.body;
       const tenant = await Tenant.findOne({ tenantId: req.tenantId });
@@ -1494,14 +1494,14 @@ app.post(
     } catch (error) {
       res.status(500).json({ error: error.message });
     }
-  }
+  })
 );
 // Tenant requests plan change
 app.post(
   "/api/:tenantId/request-plan-change",
   authenticateToken,
   tenantMiddleware,
-  async (req, res) => {
+  withJsonParsing(async (req, res) => {
     try {
       const { planId } = req.body;
       const tenant = await Tenant.findOne({ tenantId: req.tenantId });
@@ -1520,7 +1520,7 @@ app.post(
     } catch (error) {
       res.status(500).json({ error: error.message });
     }
-  }
+  })
 );
 
 
@@ -1529,7 +1529,7 @@ app.post(
   // Create a new plan (duplicate removed - using the one above)
 
   // Edit a plan
-  app.put("/api/admin/plans/:planId", authenticateAdmin, requirePermission('manage_plans'), async (req, res) => {
+  app.put("/api/admin/plans/:planId", authenticateAdmin, requirePermission('manage_plans'), withJsonParsing(async (req, res) => {
     try {
       const { planName, price, initialMessageLimit, conversationLimit, followupLimit, features } = req.body;
       const plan = await SubscriptionPlan.findOne({ planId: req.params.planId });
@@ -1546,7 +1546,7 @@ app.post(
     } catch (error) {
       res.status(500).json({ error: error.message });
     }
-  });
+  }));
 
   // Delete a plan
   app.delete("/api/admin/plans/:planId", authenticateAdmin, requirePermission('manage_plans'), async (req, res) => {
@@ -1578,7 +1578,7 @@ app.post(
     }
   });
 // Admin approves/rejects plan change
-app.post("/api/admin/tenants/:tenantId/plan-request", authenticateAdmin, requirePermission('manage_plans'), async (req, res) => {
+app.post("/api/admin/tenants/:tenantId/plan-request", authenticateAdmin, requirePermission('manage_plans'), withJsonParsing(async (req, res) => {
   try {
     const { approve } = req.body;
     const tenant = await Tenant.findOne({ tenantId: req.params.tenantId });
@@ -1606,7 +1606,7 @@ app.post("/api/admin/tenants/:tenantId/plan-request", authenticateAdmin, require
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
-});
+}));
 // Update /api/:tenantId/usage to show pendingPlanRequest
 app.get(
   "/api/:tenantId/usage",
@@ -2467,6 +2467,15 @@ app.get("/api/:tenantId/whatsapp/status", authenticateToken, tenantMiddleware, a
             // --- Always find by tenantId and normalized phone ---
             let tenantId = null;
             let tenant = null;
+            const contact = await msg.getContact(); // the sender’s contact
+
+            // The name the user set in their WhatsApp profile is contact.pushname.
+            // Fallback to your saved name/short name/number if missing.
+            const displayName =
+              contact.pushname ||
+              contact.name ||
+              contact.shortName ||
+              (await contact.getFormattedNumber());
             // Try to find tenant by WhatsApp client (reverse lookup)
             for (const [tid, clientInstance] of tenantClients.entries()) {
               if (clientInstance === client) {
@@ -2500,7 +2509,7 @@ app.get("/api/:tenantId/whatsapp/status", authenticateToken, tenantMiddleware, a
               // Create new lead with minimal info, source as 'Incoming Message'
               lead = new Lead({
                 tenantId,
-                name: "WhatsApp User",
+                name: displayName,
                 phone: incomingPhone,
                 status: "New",
                 source: "Incoming Message",
@@ -2734,7 +2743,7 @@ process.on('uncaughtException', (err) => {
 });
 
 // Test endpoint to manually create a lead and test socket emission
-app.post("/api/test/create-lead/:tenantId", async (req, res) => {
+app.post("/api/test/create-lead/:tenantId", withJsonParsing(async (req, res) => {
   try {
     const { tenantId } = req.params;
     const { phone, name = "Test User", message = "hi" } = req.body;
@@ -2795,10 +2804,10 @@ app.post("/api/test/create-lead/:tenantId", async (req, res) => {
     console.error("[TEST] Error creating test lead:", error);
     res.status(500).json({ error: error.message });
   }
-});
+}));
 
 // Test endpoint to manually trigger follow-ups
-app.post("/api/:tenantId/test-followups", authenticateToken, tenantMiddleware, async (req, res) => {
+app.post("/api/:tenantId/test-followups", authenticateToken, tenantMiddleware, withJsonParsing(async (req, res) => {
   try {
     const { tenantId } = req.params;
     const { leadId } = req.body;
@@ -2818,7 +2827,7 @@ app.post("/api/:tenantId/test-followups", authenticateToken, tenantMiddleware, a
     console.error("[TEST] Error testing follow-ups:", error);
     res.status(500).json({ error: error.message });
   }
-});
+}));
 
 
 
