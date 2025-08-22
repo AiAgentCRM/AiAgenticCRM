@@ -144,7 +144,9 @@ const WhatsAppConnect = ({ tenantId }) => {
           pollingRef.current = setTimeout(poll, 2000);
         }
       } catch (err) {
-        setError("Failed to check WhatsApp status.");
+        // Don't show error on first load, just set a neutral message
+        setReady(false);
+        setMessage("WhatsApp is not connected. Click 'Connect WhatsApp' to get started.");
       } finally {
         setLoading(false);
       }
