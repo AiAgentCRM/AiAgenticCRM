@@ -1430,6 +1430,14 @@ app.get(
           }
           tenantClients.delete(tenantId);
         });
+        
+        // Add authenticating event handler to detect when user scans QR
+        client.on("authenticating", () => {
+          console.log(`[${tenantId}] User is scanning QR code, authentication in progress...`);
+          // Emit authenticating event to frontend via socket.io
+          socketIo.to(tenantId).emit("whatsapp-authenticating", { tenantId });
+        });
+        
         client.on("message", async (message) => {
           await handleIncomingMessage(message, tenantId);
         });
@@ -1458,6 +1466,14 @@ app.get(
           });
           client.off("qr", qrHandler);
         };
+        
+        // Add authenticating event handler to detect when user scans QR
+        client.on("authenticating", () => {
+          console.log(`[${tenantId}] User is scanning QR code, authentication in progress...`);
+          // Emit authenticating event to frontend via socket.io
+          socketIo.to(tenantId).emit("whatsapp-authenticating", { tenantId });
+        });
+        
         client.on("qr", qrHandler);
       // If a recent QR was cached in the last 25 seconds, return it immediately
         const cached = tenantLatestQR.get(tenantId);
@@ -2454,6 +2470,14 @@ app.get("/api/:tenantId/whatsapp/status", authenticateToken, tenantMiddleware, a
           tenantClients.delete(tenant.tenantId);
           await robustClearSession(sessionDir);
         });
+        
+        // Add authenticating event handler to detect when user scans QR
+        client.on("authenticating", () => {
+          console.log(`[${tenant.tenantId}] User is scanning QR code, authentication in progress...`);
+          // Emit authenticating event to frontend via socket.io
+          socketIo.to(tenant.tenantId).emit("whatsapp-authenticating", { tenantId: tenant.tenantId });
+        });
+        
         // QR re-emission logic: convert to data URL, cache, and emit over socket
         let lastQR = null;
         let lastQRDataUrl = null;

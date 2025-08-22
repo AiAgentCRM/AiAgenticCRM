@@ -8,6 +8,7 @@ const WhatsAppConnect = ({ tenantId }) => {
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
   const [ready, setReady] = useState(false);
+  const [authenticating, setAuthenticating] = useState(false);
   const pollingRef = useRef(null);
   const socketRef = useRef(null);
 
@@ -40,6 +41,7 @@ const WhatsAppConnect = ({ tenantId }) => {
     setMessage("Requesting QR code...");
     setQr(null);
     setReady(false);
+    setAuthenticating(false);
     if (pollingRef.current) clearTimeout(pollingRef.current);
     try {
       const response = await fetchWhatsAppQR(tenantId);
@@ -72,6 +74,7 @@ const WhatsAppConnect = ({ tenantId }) => {
     setMessage("");
     setQr(null);
     setReady(false);
+    setAuthenticating(false);
     try {
       const data = await fetchWhatsAppStatus(tenantId);
       if (data.status === "ready") {
@@ -102,12 +105,28 @@ const WhatsAppConnect = ({ tenantId }) => {
         setQr(data.qr);
         setMessage("Scan this QR code with WhatsApp");
         setReady(false);
+        setAuthenticating(false);
         setError(null);
+      }
+    });
+    socket.on("whatsapp-authenticating", (data) => {
+      if (data.tenantId === tenantId) {
+        setAuthenticating(true);
+        setMessage("QR code scanned! Logging into WhatsApp...");
+        setQr(null);
+        setError(null);
+        
+        // Set a timeout to clear authenticating state if it takes too long (5 minutes)
+        setTimeout(() => {
+          setAuthenticating(false);
+          setMessage("Authentication taking longer than expected. Please try again.");
+        }, 300000); // 5 minutes
       }
     });
     socket.on("whatsapp-ready", (data) => {
       if (data.tenantId === tenantId) {
         setReady(true);
+        setAuthenticating(false);
         setMessage("WhatsApp is ready!");
         setQr(null);
         setError(null);
@@ -117,6 +136,7 @@ const WhatsAppConnect = ({ tenantId }) => {
     return () => {
       socket.disconnect();
       if (pollingRef.current) clearTimeout(pollingRef.current);
+      setAuthenticating(false);
     };
   }, [tenantId]);
 
@@ -128,6 +148,7 @@ const WhatsAppConnect = ({ tenantId }) => {
     setMessage("");
     setQr(null);
     setReady(false);
+    setAuthenticating(false);
     if (pollingRef.current) clearTimeout(pollingRef.current);
     const poll = async () => {
       try {
@@ -154,6 +175,7 @@ const WhatsAppConnect = ({ tenantId }) => {
     poll();
     return () => {
       if (pollingRef.current) clearTimeout(pollingRef.current);
+      setAuthenticating(false);
     };
   }, [tenantId]);
 
@@ -164,9 +186,9 @@ const WhatsAppConnect = ({ tenantId }) => {
         <button
           className="btn btn-success me-2"
           onClick={handleRequestQr}
-          disabled={loading || ready}
+          disabled={loading || ready || authenticating}
         >
-          {loading ? "Connecting..." : ready ? "Connected" : "Connect WhatsApp"}
+          {loading ? "Connecting..." : authenticating ? "Logging in..." : ready ? "Connected" : "Connect WhatsApp"}
         </button>
       {/* <button
         className="btn btn-outline-primary mb-2 ms-2"
@@ -178,7 +200,13 @@ const WhatsAppConnect = ({ tenantId }) => {
         {ready && (
           <span className="btn btn-success disabled" aria-disabled="true">✔ Connected</span>
         )}
-        {!ready && !loading && (
+              {authenticating && (
+        <span className="btn btn-warning disabled" aria-disabled="true">
+          <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+          Logging in...
+        </span>
+      )}
+        {!ready && !loading && !authenticating && (
           <span className="btn btn-danger disabled" aria-disabled="true">Not Connected</span>
         )}
       </div>
@@ -188,7 +216,14 @@ const WhatsAppConnect = ({ tenantId }) => {
           <img src={qr} alt="WhatsApp QR" style={{ width: 256, height: 256 }} />
         </div>
       )}
-      {!qr && message && <div className="text-success mt-2">{message}</div>}
+      {!qr && message && (
+        <div className={`mt-2 ${authenticating ? 'text-warning' : 'text-success'}`}>
+          {authenticating && (
+            <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+          )}
+          {message}
+        </div>
+      )}
       {error && <div className="text-danger mt-2">{error}</div>}
       {!qr && !message && !error && (
         <div className="text-muted">
