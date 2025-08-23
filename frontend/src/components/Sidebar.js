@@ -56,6 +56,12 @@ const Sidebar = ({ activeTab, setActiveTab, onLogout, isMobileOpen, isSidebarCol
       description: "Configure global messaging settings",
     },
     {
+      id: "followupMessages",
+      label: "Follow-up Messages",
+      icon: "📱",
+      description: "Configure automated follow-up messages",
+    },
+    {
       id: "knowledgebase",
       label: "Knowledge Base",
       icon: "🧠",

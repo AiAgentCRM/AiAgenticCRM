@@ -12,15 +12,8 @@ const GlobalMessagingSettings = ({ tenantId }) => {
   const [messageDelay, setMessageDelay] = useState(3000);
   const [companyProfile, setCompanyProfile] = useState("");
   const [systemPrompt, setSystemPrompt] = useState("");
-  const [followupMessages, setFollowupMessages] = useState(["", "", ""]);
-  const [followupDelays, setFollowupDelays] = useState([
-    24 * 60 * 60 * 1000,
-    48 * 60 * 60 * 1000,
-    72 * 60 * 60 * 1000,
-  ]);
   const [fetchIntervalMinutes, setFetchIntervalMinutes] = useState(3);
-  const [globalAutoFollowupEnabled, setGlobalAutoFollowupEnabled] =
-    useState(false);
+  const [globalAutoFollowupEnabled, setGlobalAutoFollowupEnabled] = useState(false);
   const [autoFollowupForIncoming, setAutoFollowupForIncoming] = useState(false);
 
   useEffect(() => {
@@ -33,14 +26,6 @@ const GlobalMessagingSettings = ({ tenantId }) => {
         setMessageDelay(settings.messageDelay || 3000);
         setCompanyProfile(settings.companyProfile || "");
         setSystemPrompt(settings.systemPrompt || "");
-        setFollowupMessages(settings.followupMessages || ["", "", ""]);
-        setFollowupDelays(
-          settings.followupDelays || [
-            24 * 60 * 60 * 1000,
-            48 * 60 * 60 * 1000,
-            72 * 60 * 60 * 1000,
-          ]
-        );
         setFetchIntervalMinutes(settings.fetchIntervalMinutes || 3);
         setGlobalAutoFollowupEnabled(!!settings.globalAutoFollowupEnabled);
         setAutoFollowupForIncoming(!!settings.autoFollowupForIncoming);
@@ -48,17 +33,6 @@ const GlobalMessagingSettings = ({ tenantId }) => {
       });
     }
   }, [tenantId]);
-
-  const handleFollowupMessageChange = (idx, value) => {
-    setFollowupMessages((prev) =>
-      prev.map((msg, i) => (i === idx ? value : msg))
-    );
-  };
-  const handleFollowupDelayChange = (idx, value) => {
-    setFollowupDelays((prev) =>
-      prev.map((d, i) => (i === idx ? Number(value) : d))
-    );
-  };
 
   const handleSave = async () => {
     if (!tenantId) return;
@@ -72,8 +46,6 @@ const GlobalMessagingSettings = ({ tenantId }) => {
       messageDelay,
       companyProfile,
       systemPrompt,
-      followupMessages,
-      followupDelays,
       fetchIntervalMinutes,
       globalAutoFollowupEnabled,
       autoFollowupForIncoming,
@@ -159,29 +131,6 @@ const GlobalMessagingSettings = ({ tenantId }) => {
         />
       </div>
       <div className="form-group">
-        <label>Follow-up Messages & Delays (up to 3)</label>
-        {[0, 1, 2].map((idx) => (
-          <div key={idx} className="mb-2 p-2 border rounded">
-            <label>Follow-up #{idx + 1} Message</label>
-            <textarea
-              className="form-control mb-1"
-              rows={2}
-              value={followupMessages[idx] || ""}
-              onChange={(e) => handleFollowupMessageChange(idx, e.target.value)}
-              placeholder={`Follow-up message #${idx + 1}`}
-            />
-            <label>Delay after previous (ms)</label>
-            <input
-              type="number"
-              className="form-control"
-              value={followupDelays[idx] || 0}
-              min={0}
-              onChange={(e) => handleFollowupDelayChange(idx, e.target.value)}
-            />
-          </div>
-        ))}
-      </div>
-      <div className="form-group">
         <label>Google Sheets Fetch Interval (minutes)</label>
         <input
           type="number"
@@ -191,29 +140,76 @@ const GlobalMessagingSettings = ({ tenantId }) => {
           onChange={(e) => setFetchIntervalMinutes(Number(e.target.value))}
         />
       </div>
-      <div className="form-group form-check">
-        <input
-          type="checkbox"
-          className="form-check-input"
-          id="globalAutoFollowup"
-          checked={globalAutoFollowupEnabled}
-          onChange={(e) => setGlobalAutoFollowupEnabled(e.target.checked)}
-        />
-        <label className="form-check-label" htmlFor="globalAutoFollowup">
-          Enable Global Auto Follow-up
-        </label>
+      <div className="form-group mb-4">
+        <div className="card border-0 shadow-sm">
+          <div className="card-body p-4">
+            <div className="d-flex align-items-center justify-content-between mb-3">
+              <div>
+                <h6 className="mb-1 fw-bold text-primary">
+                  <i className="fas fa-robot me-2"></i>
+                  Global Auto Follow-up
+                </h6>
+                <p className="text-muted small mb-0">
+                  When enabled, the system will automatically send follow-up messages to leads based on the schedule above.
+                </p>
+              </div>
+              <div className="form-check form-switch">
+                <input
+                  type="checkbox"
+                  className="form-check-input"
+                  id="globalAutoFollowup"
+                  checked={globalAutoFollowupEnabled}
+                  onChange={(e) => setGlobalAutoFollowupEnabled(e.target.checked)}
+                  style={{
+                    width: '3rem',
+                    height: '1.5rem',
+                    backgroundColor: globalAutoFollowupEnabled ? '#0d6efd' : '#6c757d',
+                    borderColor: globalAutoFollowupEnabled ? '#0d6efd' : '#6c757d'
+                  }}
+                />
+                <label className="form-check-label ms-3 fw-semibold" htmlFor="globalAutoFollowup">
+                  {globalAutoFollowupEnabled ? 'Enabled' : 'Disabled'}
+                </label>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
-      <div className="form-group form-check">
-        <input
-          type="checkbox"
-          className="form-check-input"
-          id="autoFollowupForIncoming"
-          checked={autoFollowupForIncoming}
-          onChange={(e) => setAutoFollowupForIncoming(e.target.checked)}
-        />
-        <label className="form-check-label" htmlFor="autoFollowupForIncoming">
-          Enable Auto Follow-up for Incoming Message Leads
-        </label>
+
+      <div className="form-group mb-4">
+        <div className="card border-0 shadow-sm">
+          <div className="card-body p-4">
+            <div className="d-flex align-items-center justify-content-between mb-3">
+              <div>
+                <h6 className="mb-1 fw-bold text-success">
+                  <i className="fas fa-comments me-2"></i>
+                  Auto Follow-up for Incoming Message Leads
+                </h6>
+                <p className="text-muted small mb-0">
+                  Automatically send follow-up messages to leads who initiate conversations with your business.
+                </p>
+              </div>
+              <div className="form-check form-switch">
+                <input
+                  type="checkbox"
+                  className="form-check-input"
+                  id="autoFollowupForIncoming"
+                  checked={autoFollowupForIncoming}
+                  onChange={(e) => setAutoFollowupForIncoming(e.target.checked)}
+                  style={{
+                    width: '3rem',
+                    height: '1.5rem',
+                    backgroundColor: autoFollowupForIncoming ? '#198754' : '#6c757d',
+                    borderColor: autoFollowupForIncoming ? '#198754' : '#6c757d'
+                  }}
+                />
+                <label className="form-check-label ms-3 fw-semibold" htmlFor="autoFollowupForIncoming">
+                  {autoFollowupForIncoming ? 'Enabled' : 'Disabled'}
+                </label>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
       <button
         className="btn btn-primary"
