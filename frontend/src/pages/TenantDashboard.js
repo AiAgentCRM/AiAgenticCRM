@@ -8,6 +8,7 @@ import WhatsAppLauncher from "../components/WhatsAppLauncher";
 import LeadsManagement from "./LeadsManagement";
 import LeadStageDetection from "../components/LeadStageDetection";
 import GlobalSettings from "./GlobalSettings";
+import FollowupMessagesSettings from "../components/FollowupMessagesSettings";
 import KnowledgeBase from "./KnowledgeBase";
 import GoogleSheets from "./GoogleSheets";
 import useToast from "../hooks/useToast";
@@ -1105,6 +1106,14 @@ const TenantDashboard = () => {
 
               {activeTab === "settings" && (
                 <GlobalSettings tenantId={tenantId} />
+              )}
+
+              {activeTab === "followupMessages" && (
+                <div className="card">
+                  <div className="card-body">
+                    <FollowupMessagesSettings tenantId={tenantId} />
+                  </div>
+                </div>
               )}
 
               {activeTab === "knowledgebase" && (
