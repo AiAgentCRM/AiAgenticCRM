@@ -140,6 +140,9 @@ const WhatsAppConnect = ({ tenantId }) => {
     };
   }, [tenantId]);
 
+ useEffect(() => {
+    handleRequestQr();
+  }, []);
   // On mount, check status and poll until ready
   useEffect(() => {
     if (!tenantId) return;
