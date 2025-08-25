@@ -1411,6 +1411,11 @@ app.get(
             tenant.whatsappReady = true;
             await tenant.save();
           }
+
+           console.log(`�� [${tenantId}] USER HAS COMPLETED QR SCANNING! WhatsApp is now READY!`);
+          console.log(`📱 [${tenantId}] WhatsApp client authenticated successfully`);
+          console.log(`✅ [${tenantId}] Session established for tenant: ${tenant?.businessName || tenantId}`);
+  
           // Emit WhatsApp ready event to frontend via socket.io
           socketIo.to(tenantId).emit("whatsapp-ready", { tenantId });
         });
@@ -1431,13 +1436,23 @@ app.get(
           tenantClients.delete(tenantId);
         });
         
-        // Add authenticating event handler to detect when user scans QR
+        // // Add authenticating event handler to detect when user scans QR
+        // client.on("authenticating", () => {
+        //   console.log(`[${tenantId}] User is scanning QR code, authentication in progress...`);
+        //   // Emit authenticating event to frontend via socket.io
+        //   socketIo.to(tenantId).emit("whatsapp-authenticating", { tenantId });
+        // });
+        
+                // Add authenticating event handler to detect when user scans QR
         client.on("authenticating", () => {
-          console.log(`[${tenantId}] User is scanning QR code, authentication in progress...`);
+          console.log(`�� [${tenantId}] User is scanning QR code, authentication in progress...`);
+          console.log(`⏳ [${tenantId}] Waiting for authentication to complete...`);
+          console.log(`📱 [${tenantId}] QR code has been scanned, processing login...`);
+          
           // Emit authenticating event to frontend via socket.io
           socketIo.to(tenantId).emit("whatsapp-authenticating", { tenantId });
         });
-        
+
         client.on("message", async (message) => {
           await handleIncomingMessage(message, tenantId);
         });
@@ -1467,13 +1482,16 @@ app.get(
           client.off("qr", qrHandler);
         };
         
-        // Add authenticating event handler to detect when user scans QR
+       // Add authenticating event handler to detect when user scans QR
         client.on("authenticating", () => {
-          console.log(`[${tenantId}] User is scanning QR code, authentication in progress...`);
+          console.log(`�� [${tenantId}] User is scanning QR code, authentication in progress...`);
+          console.log(`⏳ [${tenantId}] Waiting for authentication to complete...`);
+          console.log(`📱 [${tenantId}] QR code has been scanned, processing login...`);
+          
           // Emit authenticating event to frontend via socket.io
           socketIo.to(tenantId).emit("whatsapp-authenticating", { tenantId });
         });
-        
+
         client.on("qr", qrHandler);
       // If a recent QR was cached in the last 25 seconds, return it immediately
         const cached = tenantLatestQR.get(tenantId);
@@ -2436,6 +2454,16 @@ app.get("/api/:tenantId/whatsapp/status", authenticateToken, tenantMiddleware, a
           }
           const t = await Tenant.findOne({ tenantId: tenant.tenantId });
           const name = t ? t.businessName : tenant.tenantId;
+
+          console.log(`�� [${tenant.tenantId}] USER HAS COMPLETED QR SCANNING! WhatsApp is now READY!`);
+          console.log(`�� [${tenant.tenantId}] WhatsApp client authenticated successfully`);
+          console.log(`✅ [${tenant.tenantId}] Session established for tenant: ${name}`);
+          console.log(`�� [${tenant.tenantId}] WhatsApp number: ${waNumber}`);
+          console.log(`�� [${tenant.tenantId}] Authentication completed at: ${new Date().toISOString()}`);
+          console.log(`�� [${tenant.tenantId}] Client ID: ${tenant.tenantId}`);
+
+
+
           console.log(`TENANT ${name} WITH NUMBER ${waNumber} IS READY`);
           if (t) {
             t.whatsappReady = true;
@@ -2471,9 +2499,12 @@ app.get("/api/:tenantId/whatsapp/status", authenticateToken, tenantMiddleware, a
           await robustClearSession(sessionDir);
         });
         
-        // Add authenticating event handler to detect when user scans QR
+       // Add authenticating event handler to detect when user scans QR
         client.on("authenticating", () => {
-          console.log(`[${tenant.tenantId}] User is scanning QR code, authentication in progress...`);
+          console.log(`�� [${tenant.tenantId}] User is scanning QR code, authentication in progress...`);
+          console.log(`⏳ [${tenant.tenantId}] Waiting for authentication to complete...`);
+          console.log(`�� [${tenant.tenantId}] QR code has been scanned, processing login...`);
+          
           // Emit authenticating event to frontend via socket.io
           socketIo.to(tenant.tenantId).emit("whatsapp-authenticating", { tenantId: tenant.tenantId });
         });
@@ -2484,7 +2515,7 @@ app.get("/api/:tenantId/whatsapp/status", authenticateToken, tenantMiddleware, a
         let qrInterval = null;
         client.on("qr", (qr) => {
           lastQR = qr;
-          qrcode.generate(qr, { small: true });
+          // qrcode.generate(qr, { small: true });
           console.log(`[${tenant.tenantId}] Scan the QR code above with your WhatsApp mobile app.`);
           require("qrcode").toDataURL(qr, (err, dataUrl) => {
             if (!err) {
